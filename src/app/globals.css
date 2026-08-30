@@ -1,26 +1,59 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme {
+  /* Merah – Putih – Biru LEMBANG ONLINE STORE */
+  --color-brand: #d81e2e;
+  --color-brand-dark: #b01623;
+  --color-brand-soft: #fdecee;
+  --color-navy: #1a3c8b;
+  --color-navy-dark: #142f6b;
+  --color-navy-soft: #eaf0fb;
+  --color-cream: #f6f7f9;
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-cream);
+  color: #1e293b;
+}
+
+/* sembunyikan scrollbar pada baris produk geser-samping */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* label kecil untuk form admin */
+@utility form-label {
+  margin-bottom: 0.25rem;
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+/* gaya input form yang seragam */
+@utility input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background-color: #fff;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: #334155;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  &:focus {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px rgb(216 30 46 / 0.12);
+  }
+  &::placeholder {
+    color: #94a3b8;
+  }
 }

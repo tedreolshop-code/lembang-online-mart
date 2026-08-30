@@ -1,0 +1,52 @@
+SIMFAN FOTO PRODUK LEMBANG ONLINE STORE
+========================================
+
+Taruh foto produk di folder ini dengan nama file:
+  <id-produk>.jpg
+
+Foto langsung TAMPIL OTOMATIS di website, tanpa edit kode apa pun.
+Produk yang belum ada fotonya tetap tampil sebagai ikon emoji.
+
+DAFTAR NAMA FILE PER PRODUK:
+
+indomie-goreng-pcs.jpg  —  Indomie Mi Goreng
+indomie-goreng-dus.jpg  —  Indomie Mi Goreng 1 Dus
+mie-sedaap-goreng.jpg  —  Mie Sedaap Goreng
+indomie-kuah-ayam-bawang.jpg  —  Indomie Kuah Ayam Bawang
+mie-sedaap-soto.jpg  —  Mie Sedaap Kuah Soto
+indomie-kari-ayam.jpg  —  Indomie Kari Ayam
+minyak-sania-1l.jpg  —  Minyak Goreng Sania
+minyak-bimoli-2l.jpg  —  Minyak Goreng Bimoli
+minyak-kautaman-1l.jpg  —  Minyak Goreng Kautaman
+gula-gulaku-1kg.jpg  —  Gula Pasir Gulaku
+gula-kristal-1kg.jpg  —  Gula Kristal Putih
+beras-premium-5kg.jpg  —  Beras Premium Pandan Wangi
+beras-medium-5kg.jpg  —  Beras Medium
+telur-ayam-setengah.jpg  —  Telur Ayam Negeri
+terigu-segitiga-1kg.jpg  —  Terigu Segitiga Biru
+aqua-600ml.jpg  —  Aqua Botol
+aqua-galon.jpg  —  Aqua Galon Isi
+kapal-api-165g.jpg  —  Kopi Kapal Api Special
+kapal-api-sachet.jpg  —  Kopi Sachet Kapal Api
+teh-pucuk-350ml.jpg  —  Teh Pucuk Harum
+ultra-milk-coklat.jpg  —  Ultra Milk Cokelat
+teh-kotak-300ml.jpg  —  Teh Kotak Sosro
+chitato-sapi-panggang.jpg  —  Chitato Sapi Panggang
+roma-kelapa.jpg  —  Biskuit Roma Kelapa
+oreo-original.jpg  —  Oreo Original
+silverqueen-chunky.jpg  —  SilverQueen Chunky Bar
+taro-net.jpg  —  Taro Net Seaweed
+mamypoko-m34.jpg  —  Popok MamyPoko Pants M
+sweety-silver-m34.jpg  —  Popok Sweety Silver M
+genki-m30.jpg  —  Popok Genki M
+wet-tissue-malinda.jpg  —  Tisu Basah Malinda
+rinso-770g.jpg  —  Rinso Anti Noda
+sunlight-755ml.jpg  —  Sunlight Jeruk Nipis
+lifebuoy-110g.jpg  —  Sabun Lifebuoy Total 10
+shampo-sachet-12.jpg  —  Shampo Clear Sachet
+pepsodent-190g.jpg  —  Pasta Gigi Pepsodent
+kecap-bango-520.jpg  —  Kecap Manis Bango
+saos-abc-340.jpg  —  Saos Sambal ABC
+garam-500g.jpg  —  Garam Dapur Beryawan
+sarden-botan.jpg  —  Sarden Botan
+royko-ayam.jpg  —  Royko Kaldu Ayam
