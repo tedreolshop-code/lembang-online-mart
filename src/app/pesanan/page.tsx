@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useFavorites, useOrders, useProducts } from "@/lib/store";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { buildOrderRepeatMessage, waLink } from "@/lib/whatsapp";
@@ -21,19 +21,22 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
 type Tab = "pesanan" | "favorit";
 
 /** Halaman Pesanan: tab Riwayat Pesanan + tab Favorit (menu favorit
-    digabung ke sini, tidak ada halaman terpisah lagi). */
+    digabung ke sini, tidak ada halaman terpisah lagi). Tab disimpan di
+    query URL (?tab=favorit) agar bisa ditautkan langsung dari footer. */
 function PesananContent() {
   const params = useSearchParams();
+  const router = useRouter();
   const orders = useOrders();
   const settings = useSettings();
-  const [tab, setTab] = useState<Tab>(
-    params.get("tab") === "favorit" ? "favorit" : "pesanan",
-  );
+  const tab: Tab = params.get("tab") === "favorit" ? "favorit" : "pesanan";
 
-  // sinkron bila tautan /pesanan?tab=favorit diklik saat halaman sudah terbuka
-  useEffect(() => {
-    setTab(params.get("tab") === "favorit" ? "favorit" : "pesanan");
-  }, [params]);
+  const switchTab = (t: Tab) => {
+    const sp = new URLSearchParams(params.toString());
+    if (t === "favorit") sp.set("tab", "favorit");
+    else sp.delete("tab");
+    const qs = sp.toString();
+    router.replace(`/pesanan${qs ? `?${qs}` : ""}`, { scroll: false });
+  };
 
   const suksesId = params.get("sukses");
 
@@ -76,7 +79,7 @@ function PesananContent() {
       <div className="mb-5 inline-flex gap-1 rounded-full bg-white p-1 shadow-sm">
         <button
           type="button"
-          onClick={() => setTab("pesanan")}
+          onClick={() => switchTab("pesanan")}
           className={`rounded-full px-4 py-2 text-xs font-bold transition sm:px-5 sm:text-sm ${
             tab === "pesanan"
               ? "bg-navy text-white shadow"
@@ -87,7 +90,7 @@ function PesananContent() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("favorit")}
+          onClick={() => switchTab("favorit")}
           className={`rounded-full px-4 py-2 text-xs font-bold transition sm:px-5 sm:text-sm ${
             tab === "favorit"
               ? "bg-navy text-white shadow"
