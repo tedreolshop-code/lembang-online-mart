@@ -27,7 +27,7 @@ export default function HomePage() {
             <Link
               key={c.slug}
               href={`/kategori/${c.slug}`}
-              className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 bg-white p-2 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md"
+              className="group flex flex-col items-center gap-1.5 rounded-2xl border border-slate-100 bg-white p-2.5 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-navy/30 hover:bg-navy hover:shadow-md"
             >
               <span
                 className="flex h-12 w-12 items-center justify-center rounded-full text-2xl sm:h-14 sm:w-14 sm:text-3xl"
@@ -35,7 +35,7 @@ export default function HomePage() {
               >
                 {c.emoji}
               </span>
-              <span className="text-[11px] font-semibold leading-tight text-slate-700 sm:text-xs">
+              <span className="text-[11px] font-semibold leading-tight text-slate-700 transition group-hover:text-white sm:text-xs">
                 {c.name}
               </span>
             </Link>

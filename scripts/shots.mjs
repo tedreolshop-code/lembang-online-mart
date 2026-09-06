@@ -1,4 +1,4 @@
-/* Screenshot semua halaman LEMBANG ONLINE STORE untuk review visual.
+/* Screenshot semua halaman LEMBANG ONLINE MART untuk review visual.
    Jalankan dengan server produksi sudah berjalan di localhost:3000. */
 import { chromium } from "playwright-core";
 import { mkdirSync } from "node:fs";

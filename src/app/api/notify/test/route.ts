@@ -1,6 +1,7 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { rowToSettings } from "@/lib/rows";
 import { sendTestNotification } from "@/lib/notify";
+import { withSecrets } from "@/lib/notify-secrets";
 
 /** POST: kirim pesan tes notifikasi ke pemilik (khusus admin) */
 export async function POST(req: Request) {
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const result = await sendTestNotification(settings);
+  const result = await sendTestNotification(await withSecrets(settings));
   if (!result.sent) {
     return Response.json(
       { error: result.error ?? "Gagal mengirim tes." },

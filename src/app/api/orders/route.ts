@@ -2,6 +2,7 @@ import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db
 import { rowToOrder, rowToSettings } from "@/lib/rows";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { sendOrderNotification } from "@/lib/notify";
+import { withSecrets } from "@/lib/notify-secrets";
 import { after } from "next/server";
 
 /** GET: semua pesanan — khusus admin (mode cloud) */
@@ -95,7 +96,9 @@ export async function POST(req: Request) {
         .single();
       const order = rowToOrder(rows!);
       // notifikasi ke pemilik — dikirim setelah respons selesai, best-effort
-      const settings = sRow ? rowToSettings(sRow) : DEFAULT_SETTINGS;
+      const settings = sRow
+        ? await withSecrets(rowToSettings(sRow))
+        : DEFAULT_SETTINGS;
       after(async () => {
         await sendOrderNotification(settings, order);
       });

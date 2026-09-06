@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { SEED_PRODUCTS } from "@/data/seed";
-import { DEFAULT_SETTINGS, hitungOngkir } from "./config";
+import { DEFAULT_SETTINGS, hitungOngkir, normalizeSettings } from "./config";
 import type { StoreSettings } from "./config";
 import { cloudMode, authHeaders } from "./auth";
 import { newOrderId } from "./format";
@@ -424,19 +424,35 @@ export function useSettings(): StoreSettings {
         ensureCloudBoot();
         return cloudSettings;
       }
-      return readJSON<StoreSettings>(KEYS.settings, DEFAULT_SETTINGS);
+      return normalized(readJSON<StoreSettings>(KEYS.settings, DEFAULT_SETTINGS));
     },
     () => DEFAULT_SETTINGS,
   );
 }
 
-export async function saveSettings(settings: StoreSettings): Promise<void> {
+/* normalizeSettings menghasilkan objek baru — harus dimemo agar
+   useSyncExternalStore tidak berputar tanpa hingga (React #185). */
+let settingsMemo: { src: StoreSettings; out: StoreSettings } | null = null;
+function normalized(src: StoreSettings): StoreSettings {
+  if (settingsMemo && settingsMemo.src === src) return settingsMemo.out;
+  const out = normalizeSettings(src);
+  settingsMemo = { src, out };
+  return out;
+}
+
+export async function saveSettings(
+  settings: StoreSettings,
+): Promise<{ warning?: string }> {
   if (cloudMode) {
-    await api("/api/settings", { method: "PUT", body: JSON.stringify(settings) });
+    const res = await api<{ ok: boolean; warning?: string }>("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    });
     await refreshSettings();
-    return;
+    return { warning: res.warning };
   }
   writeJSON(KEYS.settings, settings);
+  return {};
 }
 
 /** Admin: isi data awal ke database (hanya bila DB kosong) */

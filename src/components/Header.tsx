@@ -26,25 +26,25 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40">
-      {/* strip biru info */}
-      <div className="bg-navy px-3 py-1.5 text-center text-[11px] font-medium text-white sm:text-xs">
+      {/* strip navy gelap info */}
+      <div className="bg-navy-dark px-3 py-1.5 text-center text-[11px] font-medium text-white/90 sm:text-xs">
         🚚 Gratis ongkir min. belanja {formatRupiah(settings.freeOngkirMin)} ·
         Antar sampai rumah
       </div>
 
-      {/* bar merah utama */}
-      <div className="bg-brand shadow-md shadow-brand/20">
+      {/* bar navy utama */}
+      <div className="bg-navy shadow-md shadow-navy/30">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-3 py-2.5 sm:px-6">
           <Link href="/" className="flex shrink-0 items-center gap-2">
-            <span className="rounded-xl bg-white p-1">
+            <span className="rounded-xl bg-white p-1.5 shadow-sm">
               <Logo className="h-7 w-7" />
             </span>
-            <span className="hidden leading-tight text-white sm:block">
-              <span className="block text-sm font-extrabold tracking-wide">
-                LEMBANG
+            <span className="hidden leading-tight sm:block">
+              <span className="block text-base font-extrabold tracking-tight text-white">
+                Lembang
               </span>
-              <span className="block text-[10px] font-semibold tracking-[0.18em] text-white/85">
-                ONLINE STORE
+              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-brand">
+                Online Mart
               </span>
             </span>
           </Link>
@@ -67,11 +67,11 @@ export default function Header() {
           <Link
             href="/keranjang"
             aria-label="Keranjang belanja"
-            className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+            className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-dark"
           >
             <CartIcon className="h-5 w-5" />
             {count > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-brand">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-navy">
                 {count > 99 ? "99+" : count}
               </span>
             )}

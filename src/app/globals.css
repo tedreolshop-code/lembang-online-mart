@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  /* Merah – Putih – Biru LEMBANG ONLINE STORE */
-  --color-brand: #d81e2e;
-  --color-brand-dark: #b01623;
-  --color-brand-soft: #fdecee;
-  --color-navy: #1a3c8b;
-  --color-navy-dark: #142f6b;
-  --color-navy-soft: #eaf0fb;
-  --color-cream: #f6f7f9;
+  /* Biru Navy – Oranye LEMBANG ONLINE MART (sesuai mockup referensi) */
+  --color-brand: #f97316;
+  --color-brand-dark: #ea580c;
+  --color-brand-soft: #fff2e3;
+  --color-navy: #0a3472;
+  --color-navy-dark: #01285f;
+  --color-navy-soft: #e8eff9;
+  --color-cream: #eef3fa;
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
 }
@@ -51,7 +51,7 @@ body {
     box-shadow 0.15s;
   &:focus {
     border-color: var(--color-brand);
-    box-shadow: 0 0 0 3px rgb(216 30 46 / 0.12);
+    box-shadow: 0 0 0 3px rgb(249 115 22 / 0.15);
   }
   &::placeholder {
     color: #94a3b8;

@@ -5,6 +5,7 @@ import { CartProvider } from "@/lib/cart";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import Footer from "@/components/Footer";
+import ThemeStyle from "@/components/ThemeStyle";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#d81e2e",
+  themeColor: "#0a3472",
 };
 
 export default function RootLayout({
@@ -34,6 +35,7 @@ export default function RootLayout({
     <html lang="id" className={`${jakarta.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
         <CartProvider>
+          <ThemeStyle />
           <Header />
           <main className="mx-auto w-full max-w-6xl flex-1 px-3 pb-24 pt-4 sm:px-6 md:pb-10">
             {children}

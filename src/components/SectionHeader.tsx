@@ -15,7 +15,7 @@ export default function SectionHeader({
 }) {
   return (
     <div className="mb-3 flex items-center justify-between">
-      <h2 className="flex items-center gap-2 text-base font-extrabold text-slate-800 sm:text-lg">
+      <h2 className="flex items-center gap-2 text-base font-extrabold text-navy sm:text-lg">
         {emoji && <span>{emoji}</span>}
         {title}
       </h2>

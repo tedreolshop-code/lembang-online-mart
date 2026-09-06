@@ -1,5 +1,6 @@
 import type { Order, OrderItem, Product } from "./types";
-import type { StoreSettings } from "./config";
+import type { BannerSlide, StoreSettings } from "./config";
+import { DEFAULT_BANNERS } from "./config";
 
 /** Mapper antara baris database (snake_case) dan tipe aplikasi (camelCase).
     Hanya dipakai di sisi server (API routes). */
@@ -65,12 +66,30 @@ export interface SettingsRow {
   hours: string;
   ongkir: number;
   free_ongkir_min: number;
-  notify_provider?: string | null;
-  notify_token?: string | null;
-  notify_target?: string | null;
+  color_primary?: string | null;
+  color_dark?: string | null;
+  logo_url?: string | null;
+  banners?: BannerSlide[] | null;
+}
+
+/** Normalisasi satu banner dari DB (bisa jsonb bentuk apa pun) */
+function toBanner(b: unknown): BannerSlide | null {
+  if (!b || typeof b !== "object") return null;
+  const o = b as Record<string, unknown>;
+  if (!o.title) return null;
+  return {
+    title: String(o.title),
+    subtitle: String(o.subtitle ?? ""),
+    cta: String(o.cta ?? "Lihat"),
+    href: String(o.href ?? "/kategori"),
+    color: String(o.color ?? "otomatis"),
+  };
 }
 
 export function rowToSettings(r: SettingsRow): StoreSettings {
+  const banners = Array.isArray(r.banners)
+    ? r.banners.map(toBanner).filter((b): b is BannerSlide => b !== null)
+    : [];
   return {
     name: r.name,
     tagline: r.tagline,
@@ -80,12 +99,14 @@ export function rowToSettings(r: SettingsRow): StoreSettings {
     ongkir: r.ongkir,
     freeOngkirMin: r.free_ongkir_min,
     adminPassword: "terkelola-di-supabase-auth",
-    notifyProvider:
-      r.notify_provider === "fonnte" || r.notify_provider === "telegram"
-        ? r.notify_provider
-        : "off",
-    notifyToken: r.notify_token ?? "",
-    notifyTarget: r.notify_target ?? "",
+    // kredensial notifikasi diisi terpisah dari tabel notify_secrets
+    notifyProvider: "off",
+    notifyToken: "",
+    notifyTarget: "",
+    colorPrimary: r.color_primary || "#f97316",
+    colorDark: r.color_dark || "#0a3472",
+    logoUrl: r.logo_url ?? "",
+    banners: banners.length > 0 ? banners : DEFAULT_BANNERS,
   };
 }
 

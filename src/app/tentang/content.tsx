@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSettings } from "@/lib/store";
 import { formatRupiah } from "@/lib/format";
 import { ClockIcon, PhoneIcon, PinIcon } from "@/components/Icons";
-import Logo from "@/components/Logo";
+import { LogoFull } from "@/components/Logo";
 
 export default function TentangContent() {
   const s = useSettings();
@@ -12,9 +12,9 @@ export default function TentangContent() {
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm sm:p-8">
       <div className="flex items-center gap-3">
-        <Logo className="h-12 w-12" />
+        <LogoFull className="h-12 w-auto" />
         <h1 className="text-xl font-extrabold text-slate-800 sm:text-2xl">
-          Tentang {s.name}
+          Tentang Kami
         </h1>
       </div>
 

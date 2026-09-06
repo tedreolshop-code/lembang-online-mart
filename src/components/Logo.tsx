@@ -1,21 +1,38 @@
-/** Logo sementara LEMBANG ONLINE STORE — tas belanja merah-putih-biru.
-    Ganti di sini (dan di src/app/icon.svg) saat logo final sudah ada. */
-export default function Logo({ className = "h-9 w-9" }: { className?: string }) {
+"use client";
+
+import { useSettings } from "@/lib/store";
+
+/** Logo LEMBANG ONLINE MART.
+    - Logo (default): ikon tas belanja, untuk header/footer/admin.
+    - LogoFull: tas + tulisan lengkap, untuk latar putih.
+    Bila pemilik mengunggah logo kustom (Admin → Tampilan), keduanya
+    otomatis memakai logo tersebut. */
+
+export default function Logo({ className = "h-7 w-7" }: { className?: string }) {
+  const { logoUrl } = useSettings();
   return (
-    <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden>
-      <rect width="48" height="48" rx="11" fill="#D81E2E" />
-      {/* pegangan tas (biru) */}
-      <path
-        d="M17.5 18.5v-3a6.5 6.5 0 0 1 13 0v3"
-        fill="none"
-        stroke="#1A3C8B"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      {/* badan tas (putih) */}
-      <rect x="13" y="18.5" width="22" height="17" rx="4" fill="#FFFFFF" />
-      {/* huruf L (digambar sebagai path agar terbaca di ukuran kecil) */}
-      <path d="M20 22.5H23.4V29.3H28V32.5H20Z" fill="#1A3C8B" />
-    </svg>
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src={logoUrl || "/logo-mark.png"}
+      alt=""
+      aria-hidden
+      className={`${className} object-contain`}
+    />
+  );
+}
+
+export function LogoFull({
+  className = "h-10 w-auto",
+}: {
+  className?: string;
+}) {
+  const { logoUrl } = useSettings();
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src={logoUrl || "/logo.png"}
+      alt="Lembang Online Mart"
+      className={`${className} object-contain`}
+    />
   );
 }

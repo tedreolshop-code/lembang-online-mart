@@ -1,5 +1,5 @@
 -- ============================================================
--- LEMBANG ONLINE STORE — skema database (PostgreSQL / Supabase)
+-- LEMBANG ONLINE MART — skema database (PostgreSQL / Supabase)
 -- Cara pakai: buka Supabase Dashboard → SQL Editor → tempel &
 -- jalankan seluruh file ini sekali.
 -- ============================================================
@@ -77,7 +77,20 @@ create table if not exists settings (
   notify_provider text not null default 'off'
                   check (notify_provider in ('off','fonnte','telegram')),
   notify_token    text not null default '',
-  notify_target   text not null default ''
+  notify_target   text not null default '',
+  -- tampilan (Admin → Tampilan): warna tema, logo, banner promo
+  color_primary   text not null default '#f97316',
+  color_dark      text not null default '#0a3472',
+  logo_url        text not null default '',
+  banners         jsonb not null default '[]'::jsonb
+);
+
+-- kredensial notifikasi (RAHASIA) dipisah agar tidak terbaca publik —
+-- tabel ini tidak punya policy baca: hanya service key (API) yang bisa.
+create table if not exists notify_secrets (
+  id            int primary key default 1 check (id = 1),
+  notify_token  text not null default '',
+  notify_target text not null default ''
 );
 
 create table if not exists stock_movements (

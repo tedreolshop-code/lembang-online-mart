@@ -101,7 +101,7 @@ export default function ProductCard({ product }: { product: Product }) {
             disabled={habis}
             aria-label={`Tambah ${product.name} ke keranjang`}
             onClick={() => addItem(product.id)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand text-white shadow-sm transition hover:bg-brand-dark active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-white shadow-sm transition hover:bg-brand-dark active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <PlusIcon className="h-4 w-4" />
           </button>

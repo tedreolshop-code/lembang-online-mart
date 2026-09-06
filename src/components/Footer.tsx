@@ -16,15 +16,15 @@ export default function Footer() {
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-3 sm:px-6">
         <div>
           <div className="flex items-center gap-2">
-            <span className="rounded-xl bg-white p-1">
+            <span className="rounded-xl bg-white p-1.5">
               <Logo className="h-7 w-7" />
             </span>
-            <span className="leading-tight text-white">
-              <span className="block text-sm font-extrabold tracking-wide">
-                LEMBANG
+            <span className="leading-tight">
+              <span className="block text-base font-extrabold tracking-tight text-white">
+                Lembang
               </span>
-              <span className="block text-[10px] font-semibold tracking-[0.18em] text-white/75">
-                ONLINE STORE
+              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-brand">
+                Online Mart
               </span>
             </span>
           </div>

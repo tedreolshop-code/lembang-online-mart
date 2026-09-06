@@ -1,4 +1,4 @@
-# LEMBANG ONLINE STORE 🛒
+# LEMBANG ONLINE MART 🛒
 
 Warung online warga Lembang — belanja kebutuhan harian (mie instan, minyak,
 sembako, popok, kebersihan, dll) diantar sampai rumah. Tampilan ala Alfagift
