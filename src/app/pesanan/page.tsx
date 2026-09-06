@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useOrders } from "@/lib/store";
+import { useFavorites, useOrders, useProducts } from "@/lib/store";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { buildOrderRepeatMessage, waLink } from "@/lib/whatsapp";
 import { useSettings } from "@/lib/store";
 import type { OrderStatus } from "@/lib/types";
+import ProductCard from "@/components/ProductCard";
 import { CheckIcon, ChatIcon } from "@/components/Icons";
 
 const STATUS_STYLE: Record<OrderStatus, string> = {
@@ -17,15 +18,28 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
   dibatalkan: "bg-slate-200 text-slate-500",
 };
 
+type Tab = "pesanan" | "favorit";
+
+/** Halaman Pesanan: tab Riwayat Pesanan + tab Favorit (menu favorit
+    digabung ke sini, tidak ada halaman terpisah lagi). */
 function PesananContent() {
   const params = useSearchParams();
   const orders = useOrders();
   const settings = useSettings();
+  const [tab, setTab] = useState<Tab>(
+    params.get("tab") === "favorit" ? "favorit" : "pesanan",
+  );
+
+  // sinkron bila tautan /pesanan?tab=favorit diklik saat halaman sudah terbuka
+  useEffect(() => {
+    setTab(params.get("tab") === "favorit" ? "favorit" : "pesanan");
+  }, [params]);
+
   const suksesId = params.get("sukses");
 
   return (
     <div>
-      {suksesId && (
+      {suksesId && tab === "pesanan" && (
         <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white">
             <CheckIcon className="h-6 w-6" />
@@ -58,6 +72,41 @@ function PesananContent() {
         </div>
       )}
 
+      {/* tab */}
+      <div className="mb-5 inline-flex gap-1 rounded-full bg-white p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setTab("pesanan")}
+          className={`rounded-full px-4 py-2 text-xs font-bold transition sm:px-5 sm:text-sm ${
+            tab === "pesanan"
+              ? "bg-navy text-white shadow"
+              : "text-slate-500 hover:text-navy"
+          }`}
+        >
+          Riwayat Pesanan
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("favorit")}
+          className={`rounded-full px-4 py-2 text-xs font-bold transition sm:px-5 sm:text-sm ${
+            tab === "favorit"
+              ? "bg-navy text-white shadow"
+              : "text-slate-500 hover:text-navy"
+          }`}
+        >
+          Favorit ❤️
+        </button>
+      </div>
+
+      {tab === "pesanan" ? <RiwayatTab orders={orders} /> : <FavoritTab />}
+    </div>
+  );
+}
+
+/** tab riwayat pesanan */
+function RiwayatTab({ orders }: { orders: ReturnType<typeof useOrders> }) {
+  return (
+    <div>
       <h1 className="mb-1 text-xl font-extrabold text-slate-800 sm:text-2xl">
         Riwayat Pesanan 🧾
       </h1>
@@ -135,6 +184,48 @@ function PesananContent() {
                 </span>
               </div>
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** tab produk favorit (dipindah dari halaman /favorit lama) */
+function FavoritTab() {
+  const favorites = useFavorites();
+  const products = useProducts();
+  const items = products.filter((p) => favorites.includes(p.id));
+
+  return (
+    <div>
+      <h1 className="mb-1 text-xl font-extrabold text-slate-800 sm:text-2xl">
+        Produk Favorit ❤️
+      </h1>
+      <p className="mb-5 text-sm text-slate-500">
+        Barang yang kamu tandai dengan hati, biar gampang dicari lagi
+      </p>
+
+      {items.length === 0 ? (
+        <div className="rounded-2xl bg-white p-10 text-center shadow-sm">
+          <p className="text-5xl">🤍</p>
+          <p className="mt-3 font-bold text-slate-700">
+            Belum ada produk favorit
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Tekan ikon hati di kartu produk untuk menyimpannya di sini.
+          </p>
+          <Link
+            href="/"
+            className="mt-5 inline-block rounded-full bg-brand px-6 py-2.5 text-sm font-bold text-white shadow"
+          >
+            Cari Barang
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+          {items.map((p) => (
+            <ProductCard key={p.id} product={p} />
           ))}
         </div>
       )}

@@ -3,7 +3,6 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/lib/cart";
 import Header from "@/components/Header";
-import BottomNav from "@/components/BottomNav";
 import Footer from "@/components/Footer";
 import ThemeStyle from "@/components/ThemeStyle";
 import { DEFAULT_SETTINGS } from "@/lib/config";
@@ -37,11 +36,10 @@ export default function RootLayout({
         <CartProvider>
           <ThemeStyle />
           <Header />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-3 pb-24 pt-4 sm:px-6 md:pb-10">
+          <main className="mx-auto w-full max-w-6xl flex-1 px-3 pb-10 pt-4 sm:px-6">
             {children}
           </main>
           <Footer />
-          <BottomNav />
         </CartProvider>
       </body>
     </html>

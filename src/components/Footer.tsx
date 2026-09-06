@@ -59,7 +59,7 @@ export default function Footer() {
               </Link>
             </li>
             <li>
-              <Link className="hover:text-white" href="/favorit">
+              <Link className="hover:text-white" href="/pesanan?tab=favorit">
                 Favorit
               </Link>
             </li>
