@@ -1100,6 +1100,7 @@ function slugify(name: string): string {
 /* ── tab tampilan: warna tema, logo, banner promo ─────────────── */
 
 const PRESET_TEMA: { nama: string; primary: string; dark: string }[] = [
+  { nama: "Merah & Oranye", primary: "#f97316", dark: "#b91c1c" },
   { nama: "Navy & Oranye", primary: "#f97316", dark: "#0a3472" },
   { nama: "Merah Putih", primary: "#d81e2e", dark: "#1a3c8b" },
   { nama: "Hijau Segar", primary: "#16a34a", dark: "#14532d" },
@@ -1237,7 +1238,7 @@ function TampilanTab() {
               <input
                 value={dark}
                 onChange={(e) => setDark(e.target.value)}
-                placeholder="#0a3472"
+                placeholder="#b91c1c"
                 className="input font-mono text-xs"
               />
             </span>

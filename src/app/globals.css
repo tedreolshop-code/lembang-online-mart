@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  /* Biru Navy – Oranye LEMBANG ONLINE MART (sesuai mockup referensi) */
+  /* Merah – Oranye LEMBANG ONLINE MART (sesuai permintaan klient) */
   --color-brand: #f97316;
   --color-brand-dark: #ea580c;
   --color-brand-soft: #fff2e3;
-  --color-navy: #0a3472;
-  --color-navy-dark: #01285f;
-  --color-navy-soft: #e8eff9;
-  --color-cream: #eef3fa;
+  --color-navy: #b91c1c;
+  --color-navy-dark: #7f1d1d;
+  --color-navy-soft: #fdecec;
+  --color-cream: #fbf4f2;
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
 }

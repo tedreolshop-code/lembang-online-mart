@@ -105,7 +105,7 @@ export function rowToSettings(r: SettingsRow): StoreSettings {
     notifyToken: "",
     notifyTarget: "",
     colorPrimary: r.color_primary || "#f97316",
-    colorDark: r.color_dark || "#0a3472",
+    colorDark: r.color_dark || "#b91c1c",
     logoUrl: r.logo_url ?? "",
     banners: banners.length > 0 ? banners : DEFAULT_BANNERS,
   };

@@ -6,7 +6,7 @@ import { useSettings } from "@/lib/store";
     Admin → Tampilan sebelum disimpan). */
 export function applyThemeVars(primary: string, dark: string): void {
   const p = safe(primary, "#f97316");
-  const d = safe(dark, "#0a3472");
+  const d = safe(dark, "#b91c1c");
   const r = document.documentElement.style;
   r.setProperty("--color-brand", p);
   r.setProperty("--color-brand-dark", shade(p, -0.18));
@@ -39,7 +39,7 @@ function safe(hex: string, fallback: string): string {
 export default function ThemeStyle() {
   const s = useSettings();
   const primary = safe(s.colorPrimary, "#f97316");
-  const dark = safe(s.colorDark, "#0a3472");
+  const dark = safe(s.colorDark, "#b91c1c");
 
   // turunan warna agar gradasi/soft tetap terlihat harmonis
   const primaryDark = shade(primary, -0.18);

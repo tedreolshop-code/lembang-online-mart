@@ -84,7 +84,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   notifyToken: "",
   notifyTarget: "",
   colorPrimary: "#f97316",
-  colorDark: "#0a3472",
+  colorDark: "#b91c1c",
   logoUrl: "",
   banners: DEFAULT_BANNERS,
 };
