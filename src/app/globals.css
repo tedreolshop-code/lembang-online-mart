@@ -16,6 +16,28 @@
 body {
   background: var(--color-cream);
   color: #1e293b;
+  overflow-x: clip; /* hero full-bleed 100vw tanpa scrollbar horizontal */
+}
+
+/* keluar dari kontainer max-w-6xl → hero/banner memenuhi lebar layar */
+@utility full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+}
+
+/* transisi teks hero saat ganti slide */
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@utility animate-hero-fade {
+  animation: hero-fade 0.5s ease both;
 }
 
 /* sembunyikan scrollbar pada baris produk geser-samping */

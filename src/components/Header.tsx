@@ -4,11 +4,19 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 import { useSettings } from "@/lib/store";
-import { formatRupiah } from "@/lib/format";
 import { useCart } from "@/lib/cart";
-import { BagIcon, SearchIcon, CartIcon } from "./Icons";
+import { SearchIcon, CartIcon } from "./Icons";
 import Logo from "./Logo";
 
+const MENU = [
+  { href: "/", label: "Beranda" },
+  { href: "/kategori", label: "Kategori" },
+  { href: "/keranjang", label: "Keranjang" },
+  { href: "/pesanan", label: "Pesanan" },
+];
+
+/** Header navy ala mockup: logo kiri, menu tengah (desktop),
+    tombol cari + keranjang oranye kanan. */
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
@@ -25,51 +33,67 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40">
-      {/* strip navy gelap info */}
-      <div className="bg-navy-dark px-3 py-1.5 text-center text-[11px] font-medium text-white/90 sm:text-xs">
-        🚚 Gratis ongkir min. belanja {formatRupiah(settings.freeOngkirMin)} ·
-        Antar sampai rumah
-      </div>
+    <header className="sticky top-0 z-40 bg-navy shadow-md shadow-navy/30">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-3 sm:px-6">
+        {/* logo + nama toko */}
+        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <Logo className="h-9 w-9" />
+          <span className="text-lg font-extrabold tracking-tight text-white sm:text-xl">
+            Lembang{" "}
+            <span style={{ color: settings.colorPrimary }}>Online Mart</span>
+          </span>
+        </Link>
 
-      {/* bar navy utama */}
-      <div className="bg-navy shadow-md shadow-navy/30">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-3 py-2.5 sm:px-6">
-          <Link href="/" className="flex shrink-0 items-center gap-2">
-            <span className="rounded-xl bg-white p-1.5 shadow-sm">
-              <Logo className="h-7 w-7" />
-            </span>
-            <span className="hidden leading-tight sm:block">
-              <span className="block text-base font-extrabold tracking-tight text-white">
-                Lembang
-              </span>
-              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-brand">
-                Online Mart
-              </span>
-            </span>
+        {/* menu tengah (desktop) */}
+        <nav className="mx-auto hidden items-center gap-1 text-sm font-semibold text-white/85 md:flex">
+          {MENU.map((m) => {
+            const active =
+              m.href === "/" ? pathname === "/" : pathname.startsWith(m.href);
+            return (
+              <Link
+                key={m.href}
+                href={m.href}
+                className={`rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white ${
+                  active ? "bg-white/10 text-white" : ""
+                }`}
+              >
+                {m.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* cari + keranjang */}
+        <div className="ml-auto flex items-center gap-2 md:ml-0">
+          <form
+            onSubmit={submitSearch}
+            className="hidden items-center gap-2 rounded-full bg-white px-3.5 py-2 lg:flex"
+          >
+            <SearchIcon className="h-4 w-4 shrink-0 text-slate-400" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cari kebutuhanmu…"
+              className="w-40 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 xl:w-52"
+              aria-label="Cari produk"
+            />
+          </form>
+          <Link
+            href="/cari"
+            aria-label="Cari produk"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/10 lg:hidden"
+          >
+            <SearchIcon className="h-5 w-5" />
           </Link>
 
-          {/* pencarian */}
-          <form onSubmit={submitSearch} className="flex-1">
-            <div className="flex items-center gap-2 rounded-full bg-white px-3 py-2">
-              <SearchIcon className="h-4 w-4 shrink-0 text-slate-400" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Cari mie instan, minyak, popok…"
-                className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                aria-label="Cari produk"
-              />
-            </div>
-          </form>
-
-          {/* keranjang */}
           <Link
             href="/keranjang"
             aria-label="Keranjang belanja"
-            className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-dark"
+            className="relative flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-white shadow transition hover:brightness-110"
+            style={{ backgroundColor: settings.colorPrimary }}
           >
-            <CartIcon className="h-5 w-5" />
+            <CartIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Keranjang</span>
             {count > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-navy">
                 {count > 99 ? "99+" : count}
@@ -77,34 +101,7 @@ export default function Header() {
             )}
           </Link>
         </div>
-
-        {/* nav desktop */}
-        <nav className="mx-auto hidden max-w-6xl items-center gap-1 px-6 pb-2 text-sm font-medium text-white/90 sm:flex">
-          <BagIcon className="mr-1 h-4 w-4" />
-          <span className="mr-3 text-white">{settings.tagline}</span>
-          <HeaderLink href="/kategori">Semua Kategori</HeaderLink>
-          <HeaderLink href="/favorit">Favorit</HeaderLink>
-          <HeaderLink href="/pesanan">Riwayat Pesanan</HeaderLink>
-          <HeaderLink href="/cara-pesan">Cara Pesan</HeaderLink>
-        </nav>
       </div>
     </header>
-  );
-}
-
-function HeaderLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-full px-3 py-1 transition hover:bg-white/15 hover:text-white"
-    >
-      {children}
-    </Link>
   );
 }

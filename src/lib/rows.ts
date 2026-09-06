@@ -83,6 +83,7 @@ function toBanner(b: unknown): BannerSlide | null {
     cta: String(o.cta ?? "Lihat"),
     href: String(o.href ?? "/kategori"),
     color: String(o.color ?? "otomatis"),
+    image: String(o.image ?? ""),
   };
 }
 

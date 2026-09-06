@@ -39,6 +39,8 @@ export interface BannerSlide {
   href: string;
   /** "otomatis" memakai warna gelap toko; atau warna hex sendiri */
   color: string;
+  /** URL foto sisi kanan hero (kosong = foto bawaan /hero-toko.jpg) */
+  image: string;
 }
 
 /** Banners bawaan bila pemilik belum mengatur apa-apa */
@@ -49,6 +51,7 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     cta: "Belanja Sekarang",
     href: "/kategori/sembako",
     color: "otomatis",
+    image: "",
   },
   {
     title: "GRATIS ONGKIR 🚚",
@@ -56,6 +59,7 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     cta: "Mulai Belanja",
     href: "/kategori",
     color: "otomatis",
+    image: "",
   },
   {
     title: "FLASH SALE SABTU 🔥",
@@ -63,6 +67,7 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     cta: "Lihat Mie Instan",
     href: "/kategori/mie-instan",
     color: "otomatis",
+    image: "",
   },
 ];
 
@@ -110,8 +115,12 @@ export function normalizeSettings(raw: Partial<StoreSettings>): StoreSettings {
       : DEFAULT_SETTINGS.colorDark,
     logoUrl: typeof merged.logoUrl === "string" ? merged.logoUrl : "",
     banners:
-      Array.isArray(merged.banners) && merged.banners.length > 0
+      (Array.isArray(merged.banners) && merged.banners.length > 0
         ? merged.banners
-        : DEFAULT_BANNERS,
+        : DEFAULT_BANNERS
+      ).map((b) => ({
+        ...b,
+        image: typeof b.image === "string" ? b.image : "",
+      })),
   };
 }

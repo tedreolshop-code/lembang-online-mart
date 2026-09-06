@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { useSettings } from "@/lib/store";
 import type { BannerSlide } from "@/lib/config";
 
+/** Hero beranda ala mockup: panel teks warna gelap di kiri (judul besar,
+    subjudul, tombol CTA oranye) + foto toko/gudang memenuhi setengah kanan.
+    Slide promo dari Admin → Tampilan mengganti teks & foto. */
 export default function BannerCarousel() {
   const [index, setIndex] = useState(0);
   const settings = useSettings();
@@ -14,46 +17,66 @@ export default function BannerCarousel() {
     if (banners.length < 2) return;
     const t = setInterval(
       () => setIndex((i) => (i + 1) % banners.length),
-      4500,
+      5000,
     );
     return () => clearInterval(t);
   }, [banners.length]);
 
   // pengaturan dimuat async → jaga indeks tetap valid
   const i = Math.min(index, Math.max(0, banners.length - 1));
-  const banner = banners[i] ?? {
-    title: "",
-    subtitle: "",
-    cta: "",
+  const banner: BannerSlide = banners[i] ?? {
+    title: settings.tagline,
+    subtitle: settings.name,
+    cta: "Mulai Belanja",
     href: "/kategori",
     color: "otomatis",
+    image: "",
   };
   const bg = banner.color === "otomatis" ? settings.colorDark : banner.color;
 
   return (
-    <div>
-      <div
-        className="flex flex-col items-start gap-1.5 rounded-2xl px-5 py-6 text-white shadow-lg shadow-slate-300/40 transition-colors duration-500 sm:px-8 sm:py-8"
-        style={{ backgroundColor: bg }}
-      >
-        <h2 className="text-xl font-extrabold tracking-tight sm:text-3xl">
-          {banner.title}
-        </h2>
-        {banner.subtitle && (
-          <p className="text-sm text-white/90 sm:text-base">{banner.subtitle}</p>
-        )}
-        <Link
-          href={banner.href || "/kategori"}
-          className="mt-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow transition hover:brightness-110 sm:text-sm"
-          style={{ backgroundColor: settings.colorPrimary }}
-        >
-          {banner.cta} →
-        </Link>
+    <div className="full-bleed relative -mt-4 shadow-lg shadow-slate-300/40">
+      <div className="grid md:grid-cols-2" style={{ backgroundColor: bg }}>
+        {/* panel teks */}
+        <div className="order-2 flex flex-col justify-center px-5 py-8 sm:px-10 md:order-1 lg:px-16">
+          <div key={i} className="animate-hero-fade max-w-xl">
+            <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
+              {banner.title}
+            </h1>
+            {banner.subtitle && (
+              <p className="mt-4 max-w-md text-sm leading-relaxed text-white/90 sm:text-lg">
+                {banner.subtitle}
+              </p>
+            )}
+            <Link
+              href={banner.href || "/kategori"}
+              className="mt-6 inline-block rounded-full px-7 py-3 text-sm font-bold text-white shadow-md transition hover:brightness-110 sm:text-base"
+              style={{ backgroundColor: settings.colorPrimary }}
+            >
+              {banner.cta}
+            </Link>
+          </div>
+        </div>
+
+        {/* foto */}
+        <div className="relative order-1 h-52 min-h-0 sm:h-72 md:order-2 md:h-auto md:min-h-105">
+          {banners.map((b, j) => (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              key={j}
+              src={b.image.trim() || "/hero-toko.jpg"}
+              alt=""
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+                j === i ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
       {/* indikator slide */}
       {banners.length > 1 && (
-        <div className="mt-3 flex justify-center gap-1.5">
+        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
           {banners.map((b, j) => (
             <button
               key={j}
@@ -61,8 +84,11 @@ export default function BannerCarousel() {
               aria-label={`Slide ${j + 1}`}
               onClick={() => setIndex(j)}
               className={`h-1.5 rounded-full transition-all ${
-                j === i ? "w-6 bg-brand" : "w-1.5 bg-slate-300"
+                j === i
+                  ? "w-8 bg-brand"
+                  : "w-4 bg-white/80 hover:bg-white"
               }`}
+              style={j === i ? { backgroundColor: settings.colorPrimary } : undefined}
             />
           ))}
         </div>

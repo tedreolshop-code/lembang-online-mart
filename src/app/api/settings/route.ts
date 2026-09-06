@@ -24,6 +24,7 @@ function bannerList(v: unknown, fallback: BannerSlide[]): BannerSlide[] {
         color: String(o.color ?? "otomatis") === "otomatis"
           ? "otomatis"
           : hexColor(o.color, "otomatis"),
+        image: String(o.image ?? "").slice(0, 500),
       };
     })
     .filter((b): b is BannerSlide => b !== null)

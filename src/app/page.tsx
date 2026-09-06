@@ -5,9 +5,10 @@ import { useProducts } from "@/lib/store";
 import { CATEGORIES } from "@/data/seed";
 import ProductCard from "@/components/ProductCard";
 import BannerCarousel from "@/components/BannerCarousel";
-import SectionHeader from "@/components/SectionHeader";
-import { ChevronRightIcon, TruckIcon } from "@/components/Icons";
+import { CategoryGlyph, TruckIcon } from "@/components/Icons";
 
+/** Beranda ala mockup GrosirMaju: hero split navy+foto, kartu kategori
+    besar berikon (kartu aktif warna navy), lalu grid "Product". */
 export default function HomePage() {
   const products = useProducts();
 
@@ -16,28 +17,46 @@ export default function HomePage() {
   const rekomendasi = products.filter((p) => !p.isPromo && !p.isBestSeller);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10 sm:space-y-12">
       <BannerCarousel />
 
-      {/* kategori */}
+      {/* kategori: kartu besar berikon, kartu pertama aktif (navy) */}
       <section>
-        <SectionHeader title="Kategori Belanja" emoji="🛒" />
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8 sm:gap-3">
-          {CATEGORIES.map((c) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {CATEGORIES.slice(0, 4).map((c, idx) => (
             <Link
               key={c.slug}
               href={`/kategori/${c.slug}`}
-              className="group flex flex-col items-center gap-1.5 rounded-2xl border border-slate-100 bg-white p-2.5 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-navy/30 hover:bg-navy hover:shadow-md"
+              className={`group flex flex-col items-center gap-3 rounded-2xl px-4 py-7 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                idx === 0
+                  ? "bg-navy text-white"
+                  : "border border-slate-100 bg-white text-slate-800 hover:border-navy/20"
+              }`}
             >
               <span
-                className="flex h-12 w-12 items-center justify-center rounded-full text-2xl sm:h-14 sm:w-14 sm:text-3xl"
-                style={{ background: c.tint }}
+                className={`flex h-12 w-12 items-center justify-center ${
+                  idx === 0 ? "text-brand" : "text-navy"
+                }`}
               >
-                {c.emoji}
+                <CategoryGlyph slug={c.slug} className="h-10 w-10" />
               </span>
-              <span className="text-[11px] font-semibold leading-tight text-slate-700 transition group-hover:text-white sm:text-xs">
-                {c.name}
+              <span className="text-sm font-bold sm:text-base">{c.name}</span>
+            </Link>
+          ))}
+        </div>
+
+        {/* sisa kategori sebagai chip gulir-samping */}
+        <div className="no-scrollbar -mx-3 mt-3 flex gap-2 overflow-x-auto px-3 sm:mx-0 sm:mt-4 sm:px-0">
+          {CATEGORIES.slice(4).map((c) => (
+            <Link
+              key={c.slug}
+              href={`/kategori/${c.slug}`}
+              className="flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-navy/30 hover:text-navy"
+            >
+              <span className="text-navy">
+                <CategoryGlyph slug={c.slug} className="h-5 w-5" />
               </span>
+              {c.name}
             </Link>
           ))}
         </div>
@@ -55,9 +74,8 @@ export default function HomePage() {
       {/* promo spesial */}
       {promo.length > 0 && (
         <section>
-          <SectionHeader
+          <ProductSectionTitle
             title="Promo Spesial"
-            emoji="🔥"
             href="/cari?filter=promo"
           />
           <ProductRow products={promo} />
@@ -67,24 +85,59 @@ export default function HomePage() {
       {/* terlaris */}
       {terlaris.length > 0 && (
         <section>
-          <SectionHeader title="Paling Sering Dibeli" emoji="⭐" href="/cari" />
+          <ProductSectionTitle title="Paling Sering Dibeli" href="/cari" />
           <ProductRow products={terlaris} />
         </section>
       )}
 
-      {/* rekomendasi */}
+      {/* rekomendasi / semua produk */}
       <section>
-        <SectionHeader
-          title="Rekomendasi Untukmu"
-          emoji="🧺"
-          href="/kategori"
-        />
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+        <ProductSectionTitle title="Product" href="/kategori" center />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
           {rekomendasi.map((p) => (
             <ProductCard key={p.id} product={p} />
           ))}
         </div>
+        <div className="mt-6 text-center">
+          <Link
+            href="/kategori"
+            className="inline-block rounded-full bg-navy px-6 py-2.5 text-sm font-bold text-white shadow transition hover:bg-navy-dark"
+          >
+            Lihat Semua Produk
+          </Link>
+        </div>
       </section>
+    </div>
+  );
+}
+
+/** Judul seksi besar di tengah ala mockup ("Product") */
+function ProductSectionTitle({
+  title,
+  href,
+  center = false,
+}: {
+  title: string;
+  href?: string;
+  center?: boolean;
+}) {
+  return (
+    <div
+      className={`mb-4 flex items-center gap-3 sm:mb-5 ${
+        center ? "justify-center" : "justify-between"
+      }`}
+    >
+      <h2 className="text-xl font-extrabold tracking-tight text-navy sm:text-2xl">
+        {title}
+      </h2>
+      {href && !center && (
+        <Link
+          href={href}
+          className="text-xs font-semibold text-navy/70 hover:text-brand sm:text-sm"
+        >
+          Lihat Semua →
+        </Link>
+      )}
     </div>
   );
 }

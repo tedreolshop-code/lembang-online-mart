@@ -1334,6 +1334,7 @@ function TampilanTab() {
                     cta: "Lihat",
                     href: "/kategori",
                     color: "otomatis",
+                    image: "",
                   },
                 ])
               }
@@ -1422,6 +1423,15 @@ function TampilanTab() {
                       />
                     )}
                   </span>
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="form-label">Foto Hero (sisi kanan)</span>
+                  <input
+                    value={b.image}
+                    onChange={(e) => setBanner(i, { image: e.target.value })}
+                    placeholder="https://…/gudang.jpg (kosongkan = foto bawaan)"
+                    className="input text-xs"
+                  />
                 </label>
               </div>
               {/* pratinjau banner */}
