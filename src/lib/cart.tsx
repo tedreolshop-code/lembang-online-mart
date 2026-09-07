@@ -16,6 +16,9 @@ const CART_KEY = "los_cart_v1";
 interface CartContextValue {
   items: CartItem[];
   count: number;
+  /** true setelah keranjang selesai dimuat dari localStorage —
+      badge count baru boleh dirender agar tidak hydration mismatch */
+  ready: boolean;
   addItem: (productId: string, qty?: number) => void;
   setQty: (productId: string, qty: number) => void;
   removeItem: (productId: string) => void;
@@ -69,12 +72,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return {
       items,
       count: items.reduce((a, i) => a + i.qty, 0),
+      ready,
       addItem,
       setQty,
       removeItem,
       clearCart,
     };
-  }, [items]);
+  }, [items, ready]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

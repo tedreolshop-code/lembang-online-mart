@@ -4,6 +4,7 @@ import "./globals.css";
 import { CartProvider } from "@/lib/cart";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import BottomNav from "@/components/BottomNav";
 import ThemeStyle from "@/components/ThemeStyle";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 
@@ -32,7 +33,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id" className={`${jakarta.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col font-sans">
+      <body className="flex min-h-full flex-col pb-16 font-sans md:pb-0">
         <CartProvider>
           <ThemeStyle />
           <Header />
@@ -40,6 +41,7 @@ export default function RootLayout({
             {children}
           </main>
           <Footer />
+          <BottomNav />
         </CartProvider>
       </body>
     </html>

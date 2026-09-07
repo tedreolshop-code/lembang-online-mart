@@ -20,7 +20,7 @@ const MENU = [
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { count } = useCart();
+  const { count, ready } = useCart();
   const settings = useSettings();
   const [q, setQ] = useState("");
 
@@ -94,7 +94,7 @@ export default function Header() {
           >
             <CartIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Keranjang</span>
-            {count > 0 && (
+            {ready && count > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-navy">
                 {count > 99 ? "99+" : count}
               </span>
