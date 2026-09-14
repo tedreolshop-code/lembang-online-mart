@@ -89,9 +89,13 @@ function buildMessage(s: StoreSettings, o: Order): string {
     "",
     `👤 ${o.customer.name} (${o.customer.phone})`,
     `📍 ${o.customer.address}`,
+    `🚚 Antar: ${o.shipOption === "xpress" ? s.xpressLabel : "Reguler"}`,
     "",
     items,
     "",
+    o.discount > 0
+      ? `🎟 Voucher ${o.coupon ?? "-"}: -${formatRupiah(o.discount)}`
+      : "",
     `Total: *${formatRupiah(o.total)}* (${o.payment})`,
     o.customer.note ? `📝 ${o.customer.note}` : "",
     "",

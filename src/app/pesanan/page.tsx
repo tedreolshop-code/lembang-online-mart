@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useFavorites, useOrders, useProducts } from "@/lib/store";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { buildOrderRepeatMessage, waLink } from "@/lib/whatsapp";
+import { printOrderStruk } from "@/lib/printStruk";
 import { useSettings } from "@/lib/store";
 import type { OrderStatus } from "@/lib/types";
 import ProductCard from "@/components/ProductCard";
@@ -22,7 +23,7 @@ type Tab = "pesanan" | "favorit";
 
 /** Halaman Pesanan: tab Riwayat Pesanan + tab Favorit (menu favorit
     digabung ke sini, tidak ada halaman terpisah lagi). Tab disimpan di
-    query URL (?tab=favorit) agar bisa ditautkan langsung dari footer. */
+    query URL (?tab=favorit) agar bisa ditautkan langsung dari Tentang Kami. */
 function PesananContent() {
   const params = useSearchParams();
   const router = useRouter();
@@ -61,15 +62,24 @@ function PesananContent() {
             const order = orders.find((o) => o.id === suksesId);
             if (!order) return null;
             return (
-              <a
-                href={waLink(buildOrderRepeatMessage(order, settings), settings.whatsapp)}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#25d366] px-5 py-2 text-sm font-bold text-white shadow transition hover:brightness-95"
-              >
-                <ChatIcon className="h-4 w-4" />
-                Konfirmasi via WhatsApp
-              </a>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <a
+                  href={waLink(buildOrderRepeatMessage(order, settings), settings.whatsapp)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#25d366] px-5 py-2 text-sm font-bold text-white shadow transition hover:brightness-95"
+                >
+                  <ChatIcon className="h-4 w-4" />
+                  Konfirmasi via WhatsApp
+                </a>
+                <button
+                  type="button"
+                  onClick={() => printOrderStruk(order, settings)}
+                  className="inline-flex items-center gap-2 rounded-full border-2 border-emerald-600 bg-white px-5 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  🖨 Cetak Struk
+                </button>
+              </div>
             );
           })()}
         </div>
@@ -101,13 +111,19 @@ function PesananContent() {
         </button>
       </div>
 
-      {tab === "pesanan" ? <RiwayatTab orders={orders} /> : <FavoritTab />}
+      {tab === "pesanan" ? <RiwayatTab orders={orders} settings={settings} /> : <FavoritTab />}
     </div>
   );
 }
 
 /** tab riwayat pesanan */
-function RiwayatTab({ orders }: { orders: ReturnType<typeof useOrders> }) {
+function RiwayatTab({
+  orders,
+  settings,
+}: {
+  orders: ReturnType<typeof useOrders>;
+  settings: ReturnType<typeof useSettings>;
+}) {
   return (
     <div>
       <h1 className="mb-1 text-xl font-extrabold text-slate-800 sm:text-2xl">
@@ -180,10 +196,26 @@ function RiwayatTab({ orders }: { orders: ReturnType<typeof useOrders> }) {
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-slate-200 pt-3">
                 <span className="text-xs text-slate-500">
-                  {o.payment} · {o.customer.name} · {o.customer.phone}
+                  {o.payment} · Antar {o.shipOption === "xpress" ? "Xpress" : "Reguler"}
+                  {o.discount > 0 && (
+                    <span className="text-emerald-600">
+                      {" "}· 🎟 −{formatRupiah(o.discount)}
+                    </span>
+                  )}
+                  <br />
+                  {o.customer.name} · {o.customer.phone}
                 </span>
-                <span className="font-extrabold text-brand">
-                  Total: {formatRupiah(o.total)}
+                <span className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => printOrderStruk(o, settings)}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-500 transition hover:border-brand/40 hover:text-brand"
+                  >
+                    🖨 Struk
+                  </button>
+                  <span className="font-extrabold text-brand">
+                    Total: {formatRupiah(o.total)}
+                  </span>
                 </span>
               </div>
             </div>

@@ -4,13 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart, useCartLines } from "@/lib/cart";
-import { createOrder } from "@/lib/store";
-import { hitungOngkir } from "@/lib/config";
-import { useSettings } from "@/lib/store";
+import { checkCoupon, createOrder, useSettings } from "@/lib/store";
+import { hitungOngkir, type ShipOption } from "@/lib/config";
 import { formatRupiah } from "@/lib/format";
 import type { PaymentMethod } from "@/lib/types";
 import ProductImage from "@/components/ProductImage";
-import { CheckIcon } from "@/components/Icons";
+import { CheckIcon, TruckIcon } from "@/components/Icons";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -23,12 +22,42 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
   const [payment, setPayment] = useState<PaymentMethod>("COD");
+  const [shipOption, setShipOption] = useState<ShipOption>("reguler");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // voucher — ternikat pada subtotal saat dipasang; ganti isi keranjang
+  // = voucher otomatis lepas (dihitung saat render, tanpa efek)
+  const [voucherInput, setVoucherInput] = useState("");
+  const [applied, setApplied] = useState<{ code: string; discount: number; at: number } | null>(null);
+  const [voucherMsg, setVoucherMsg] = useState("");
+  const [checkingVoucher, setCheckingVoucher] = useState(false);
+
   const subtotal = lines.reduce((a, l) => a + l.product.price * l.qty, 0);
-  const ongkir = hitungOngkir(settings, subtotal);
-  const total = subtotal + ongkir;
+  const ongkir = hitungOngkir(settings, subtotal, shipOption);
+  const voucherActive = applied !== null && applied.at === subtotal;
+  const discount = voucherActive ? Math.min(applied?.discount ?? 0, subtotal) : 0;
+  const total = Math.max(0, subtotal - discount + ongkir);
+
+  const applyVoucher = async () => {
+    if (checkingVoucher) return;
+    setCheckingVoucher(true);
+    setVoucherMsg("");
+    try {
+      const c = await checkCoupon(voucherInput, subtotal);
+      const d =
+        c.kind === "percent"
+          ? Math.round((subtotal * c.value) / 100 / 100) * 100
+          : Math.min(c.value, subtotal);
+      setApplied({ code: c.code, discount: d, at: subtotal });
+      setVoucherMsg(`Voucher ${c.code} diterapkan 🎉`);
+    } catch (err) {
+      setApplied(null);
+      setVoucherMsg(err instanceof Error ? err.message : "Voucher tidak berlaku.");
+    } finally {
+      setCheckingVoucher(false);
+    }
+  };
 
   if (lines.length === 0) {
     return (
@@ -58,8 +87,8 @@ export default function CheckoutPage() {
     setError("");
 
     try {
-      // mode cloud: harga & stok divalidasi server (transaksi database);
-      // mode lokal: dihitung dari data browser
+      // mode cloud: harga, stok, ongkir & voucher divalidasi server
+      // (transaksi database); mode lokal: dihitung dari data browser
       const order = await createOrder({
         channel: "form",
         customer: {
@@ -70,6 +99,8 @@ export default function CheckoutPage() {
         },
         payment,
         items: lines.map((l) => ({ productId: l.product.id, qty: l.qty })),
+        shipOption,
+        couponCode: voucherActive ? applied?.code : undefined,
       });
       clearCart();
       router.push(`/pesanan?sukses=${order.id}`);
@@ -142,6 +173,33 @@ export default function CheckoutPage() {
             />
           </Field>
 
+          <Field label="Layanan Antar *">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <ShipOptionCard
+                active={shipOption === "reguler"}
+                onClick={() => setShipOption("reguler")}
+                title="Reguler (antar warung)"
+                desc={
+                  subtotal >= settings.freeOngkirMin
+                    ? `Gratis 🎉 (min. ${formatRupiah(settings.freeOngkirMin)})`
+                    : `${formatRupiah(settings.ongkir)} · gratis di atas ${formatRupiah(settings.freeOngkirMin)}`
+                }
+              />
+              <ShipOptionCard
+                active={shipOption === "xpress"}
+                onClick={() => setShipOption("xpress")}
+                title={settings.xpressLabel}
+                desc={`+ ${formatRupiah(settings.xpressOngkir)} · tiba hari ini`}
+              />
+            </div>
+            {settings.ongkirNote && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg bg-navy-soft p-2.5 text-xs leading-relaxed text-navy">
+                <TruckIcon className="h-4 w-4 shrink-0" />
+                <span>{settings.ongkirNote}</span>
+              </div>
+            )}
+          </Field>
+
           <Field label="Metode Pembayaran *">
             <div className="grid gap-2 sm:grid-cols-2">
               <PaymentOption
@@ -184,13 +242,85 @@ export default function CheckoutPage() {
             ))}
           </ul>
 
+          {/* voucher */}
+          <div className="mt-3 border-t border-dashed border-slate-200 pt-3">
+            {applied && voucherActive ? (
+              <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-sm">
+                <span className="font-bold text-emerald-700">
+                  🎟 {applied.code}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApplied(null);
+                    setVoucherMsg("");
+                    setVoucherInput("");
+                  }}
+                  className="text-xs font-bold text-emerald-700 underline"
+                >
+                  Lepas
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={voucherInput}
+                  onChange={(e) =>
+                    setVoucherInput(e.target.value.toUpperCase())
+                  }
+                  placeholder="Kode voucher"
+                  className="input flex-1 uppercase"
+                  aria-label="Kode voucher"
+                />
+                <button
+                  type="button"
+                  onClick={applyVoucher}
+                  disabled={checkingVoucher}
+                  className="rounded-lg border-2 border-brand px-3 py-1.5 text-sm font-bold text-brand transition hover:bg-brand-soft disabled:opacity-50"
+                >
+                  {checkingVoucher ? "…" : "Pakai"}
+                </button>
+              </div>
+            )}
+            {applied && !voucherActive && (
+              <p className="mt-1.5 text-xs font-semibold text-amber-600">
+                Keranjang berubah — pasang ulang voucher ya.
+              </p>
+            )}
+            {voucherMsg && !(applied && !voucherActive) && (
+              <p
+                className={`mt-1.5 text-xs font-semibold ${
+                  voucherActive ? "text-emerald-600" : "text-brand"
+                }`}
+              >
+                {voucherMsg}
+              </p>
+            )}
+          </div>
+
           <dl className="mt-3 space-y-1.5 border-t border-dashed border-slate-200 pt-3 text-sm">
             <div className="flex justify-between">
               <dt className="text-slate-500">Subtotal</dt>
               <dd className="font-semibold">{formatRupiah(subtotal)}</dd>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-slate-500">
+                  Diskon voucher{" "}
+                  <span className="text-emerald-600">({applied?.code})</span>
+                </dt>
+                <dd className="font-semibold text-emerald-600">
+                  −{formatRupiah(discount)}
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between">
-              <dt className="text-slate-500">Ongkir</dt>
+              <dt className="text-slate-500">
+                Ongkir{" "}
+                <span className="text-xs text-slate-400">
+                  ({shipOption === "xpress" ? "Xpress" : "Reguler"})
+                </span>
+              </dt>
               <dd className="font-semibold">
                 {ongkir === 0 ? (
                   <span className="text-emerald-600">GRATIS</span>
@@ -239,6 +369,33 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+function ShipOptionCard({
+  active,
+  title,
+  desc,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  desc: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl border-2 p-3 text-left transition ${
+        active
+          ? "border-brand bg-brand-soft"
+          : "border-slate-200 hover:border-brand/40"
+      }`}
+    >
+      <span className="block text-sm font-bold text-slate-800">🚚 {title}</span>
+      <span className="text-xs text-slate-500">{desc}</span>
+    </button>
   );
 }
 

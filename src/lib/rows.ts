@@ -1,6 +1,6 @@
-import type { Order, OrderItem, Product } from "./types";
+import type { Order, OrderItem, Product, ShipOption } from "./types";
 import type { BannerSlide, StoreSettings } from "./config";
-import { DEFAULT_BANNERS } from "./config";
+import { DEFAULT_BANNERS, DEFAULT_SETTINGS } from "./config";
 
 /** Mapper antara baris database (snake_case) dan tipe aplikasi (camelCase).
     Hanya dipakai di sisi server (API routes). */
@@ -66,6 +66,9 @@ export interface SettingsRow {
   hours: string;
   ongkir: number;
   free_ongkir_min: number;
+  xpress_ongkir?: number | null;
+  xpress_label?: string | null;
+  ongkir_note?: string | null;
   color_primary?: string | null;
   color_dark?: string | null;
   logo_url?: string | null;
@@ -99,6 +102,13 @@ export function rowToSettings(r: SettingsRow): StoreSettings {
     hours: r.hours,
     ongkir: r.ongkir,
     freeOngkirMin: r.free_ongkir_min,
+    // kolom v4 mungkin belum ada bila sql/alter-v4.sql belum dijalankan
+    xpressOngkir:
+      typeof r.xpress_ongkir === "number" && Number.isFinite(r.xpress_ongkir)
+        ? r.xpress_ongkir
+        : DEFAULT_SETTINGS.xpressOngkir,
+    xpressLabel: r.xpress_label || DEFAULT_SETTINGS.xpressLabel,
+    ongkirNote: r.ongkir_note ?? "",
     adminPassword: "terkelola-di-supabase-auth",
     // kredensial notifikasi diisi terpisah dari tabel notify_secrets
     notifyProvider: "off",
@@ -122,7 +132,10 @@ export interface OrderRow {
   customer_address: string;
   note: string | null;
   payment: "COD" | "Transfer Bank";
+  ship_option?: string | null;
   subtotal: number;
+  discount?: number | null;
+  coupon_code?: string | null;
   shipping: number;
   total: number;
   order_items?: ItemRow[] | null;
@@ -159,8 +172,11 @@ export function rowToOrder(r: OrderRow): Order {
       note: r.note ?? undefined,
     },
     payment: r.payment,
+    shipOption: (r.ship_option === "xpress" ? "xpress" : "reguler") as ShipOption,
     items,
     subtotal: r.subtotal,
+    discount: Number(r.discount ?? 0),
+    coupon: r.coupon_code ?? undefined,
     shipping: r.shipping,
     total: r.total,
   };

@@ -69,6 +69,10 @@ export async function PUT(req: Request) {
     hours: String(body.hours ?? DEFAULT_SETTINGS.hours),
     ongkir: Number(body.ongkir ?? DEFAULT_SETTINGS.ongkir) || 0,
     free_ongkir_min: Number(body.freeOngkirMin ?? DEFAULT_SETTINGS.freeOngkirMin) || 0,
+    // v4: opsi layanan antar Xpress + keterangan ongkir
+    xpress_ongkir: Number(body.xpressOngkir ?? DEFAULT_SETTINGS.xpressOngkir) || 0,
+    xpress_label: String(body.xpressLabel ?? DEFAULT_SETTINGS.xpressLabel).slice(0, 80),
+    ongkir_note: String(body.ongkirNote ?? "").slice(0, 600),
     // tampilan: warna tema, logo, banner promo
     color_primary: hexColor(body.colorPrimary, DEFAULT_SETTINGS.colorPrimary),
     color_dark: hexColor(body.colorDark, DEFAULT_SETTINGS.colorDark),
@@ -76,27 +80,32 @@ export async function PUT(req: Request) {
     banners: bannerList(body.banners, DEFAULT_BANNERS),
   };
 
-  const { error } = await db().from("settings").upsert(row);
-  if (error) {
-    // kolom tampilan belum ada (migrasi sql/alter-v3.sql belum dijalankan)?
-    // simpan dulu data dasar agar pengaturan lain tetap berfungsi.
-    const base: Record<string, unknown> = { ...row };
-    delete base.color_primary;
-    delete base.color_dark;
-    delete base.logo_url;
-    delete base.banners;
-    const retry = await db().from("settings").upsert(base);
-    if (retry.error) {
-      return Response.json({ error: retry.error.message }, { status: 500 });
-    }
-    return Response.json({
-      ok: true,
-      warning:
-        "Pengaturan tampilan (warna/logo/banner) belum tersimpan di database — jalankan sql/alter-v3.sql di Supabase SQL Editor.",
-    });
-  }
+  // kolom v3/v4 mungkin belum ada bila SQL migrasi belum dijalankan —
+  // coba versi lengkap, lalu kurangi bertahap agar pengaturan dasar tetap tersimpan
+  const v4Keys = ["xpress_ongkir", "xpress_label", "ongkir_note"] as const;
+  const v3Keys = ["color_primary", "color_dark", "logo_url", "banners"] as const;
+  const drop = (obj: Record<string, unknown>, keys: readonly string[]) => {
+    for (const k of keys) delete obj[k];
+    return obj;
+  };
 
+  let error = (await db().from("settings").upsert(row)).error;
   let warning: string | undefined;
+  if (error) {
+    const partial = drop({ ...row }, v4Keys);
+    error = (await db().from("settings").upsert(partial)).error;
+    warning =
+      "Pengaturan Xpress/keterangan ongkir belum tersimpan di database — jalankan sql/alter-v4.sql di Supabase SQL Editor.";
+    if (error) {
+      error = (await db().from("settings").upsert(drop(partial, v3Keys))).error;
+      warning = error
+        ? undefined
+        : "Pengaturan tampilan & Xpress/ongkir belum tersimpan di database — jalankan sql/alter-v3.sql dan sql/alter-v4.sql di Supabase SQL Editor.";
+      if (error) {
+        return Response.json({ error: error.message }, { status: 500 });
+      }
+    }
+  }
 
   // kredensial notifikasi → tabel notify_secrets (token kosong = tidak diubah)
   if (

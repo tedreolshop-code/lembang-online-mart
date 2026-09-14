@@ -3,10 +3,11 @@
 import { useSyncExternalStore } from "react";
 import { SEED_PRODUCTS } from "@/data/seed";
 import { DEFAULT_SETTINGS, hitungOngkir, normalizeSettings } from "./config";
-import type { StoreSettings } from "./config";
+import type { ShipOption, StoreSettings } from "./config";
 import { cloudMode, authHeaders } from "./auth";
+import { couponDiscount } from "./coupon";
 import { newOrderId } from "./format";
-import type { Order, Product } from "./types";
+import type { Coupon, Order, Product } from "./types";
 
 /* ================================================================
    DATA LAYER MODE GANDA
@@ -22,6 +23,7 @@ const KEYS = {
   orders: "los_orders_v2",
   favorites: "los_favorites_v2",
   settings: "los_settings_v1",
+  coupons: "los_coupons_v1",
 };
 const MY_ORDERS_KEY = "los_my_orders_v1";
 
@@ -260,15 +262,24 @@ export interface OrderDraft {
   customer: { name: string; phone: string; address: string; note?: string };
   payment: "COD" | "Transfer Bank";
   items: { productId: string; qty: number }[];
+  /** layanan antar — default reguler */
+  shipOption?: ShipOption;
+  /** kode voucher yang sudah divalidasi di server */
+  couponCode?: string;
 }
 
-/** Buat pesanan. Cloud: harga & stok divalidasi server (transaksi DB).
-    Lokal: dihitung dari data localStorage. Melempar Error bila gagal. */
+/** Buat pesanan. Cloud: harga, stok, ongkir, dan voucher divalidasi
+    server (transaksi DB). Lokal: dihitung dari data localStorage.
+    Melempar Error bila gagal. */
 export async function createOrder(draft: OrderDraft): Promise<Order> {
   if (cloudMode) {
-    const order = await api<Order>("/api/orders", {
+    const { order } = await api<{ order: Order }>("/api/orders", {
       method: "POST",
-      body: JSON.stringify(draft),
+      body: JSON.stringify({
+        ...draft,
+        shipOption: draft.shipOption ?? "reguler",
+        couponCode: draft.couponCode ?? undefined,
+      }),
     });
     rememberMyOrder(order.id);
     cloudOrders = [order, ...cloudOrders];
@@ -287,7 +298,22 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
   });
   const settings = readJSON<StoreSettings>(KEYS.settings, DEFAULT_SETTINGS);
   const subtotal = lines.reduce((a, l) => a + l.product.price * l.qty, 0);
-  const shipping = hitungOngkir(settings, subtotal);
+  const shipOption: ShipOption = draft.shipOption ?? "reguler";
+  const shipping = hitungOngkir(settings, subtotal, shipOption);
+
+  // voucher mode lokal: dicocokkan dengan daftar localStorage
+  let discount = 0;
+  let coupon: string | undefined;
+  if (draft.couponCode) {
+    const c = readJSON<Coupon[]>(KEYS.coupons, []).find(
+      (x) => x.code === draft.couponCode!.toUpperCase(),
+    );
+    if (!c) throw new Error("Voucher tidak ditemukan.");
+    const res = couponDiscount(c, subtotal);
+    if (!res.ok) throw new Error(res.error ?? "Voucher tidak berlaku.");
+    discount = res.discount ?? 0;
+    coupon = c.code;
+  }
 
   const order: Order = {
     id: newOrderId(),
@@ -297,6 +323,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     stockApplied: true,
     customer: draft.customer,
     payment: draft.payment,
+    shipOption,
     items: lines.map((l) => ({
       productId: l.product.id,
       name: l.product.name,
@@ -306,8 +333,10 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
       emoji: l.product.emoji,
     })),
     subtotal,
+    discount,
+    coupon,
     shipping,
-    total: subtotal + shipping,
+    total: Math.max(0, subtotal - discount + shipping),
   };
   writeJSON(KEYS.orders, [order, ...readJSON<Order[]>(KEYS.orders, EMPTY_ORDERS)]);
   // kurangi stok (logika deductOrderStock versi lokal)
@@ -318,6 +347,14 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
       return item ? { ...p, stock: Math.max(0, p.stock - item.qty) } : p;
     }),
   );
+  if (coupon) {
+    writeJSON(
+      KEYS.coupons,
+      readJSON<Coupon[]>(KEYS.coupons, []).map((c) =>
+        c.code === coupon ? { ...c, usedCount: c.usedCount + 1 } : c,
+      ),
+    );
+  }
   rememberMyOrder(order.id);
   emit();
   return order;
@@ -412,6 +449,72 @@ export function toggleFavorite(id: string) {
     KEYS.favorites,
     favs.includes(id) ? favs.filter((f) => f !== id) : [...favs, id],
   );
+}
+
+/* ── voucher (mode ganda; kelola dari Admin → Voucher) ────────── */
+
+const EMPTY_COUPONS: Coupon[] = [];
+
+/** Daftar voucher untuk halaman admin (butuh login di mode cloud). */
+export async function listCoupons(): Promise<Coupon[]> {
+  if (cloudMode) return api<Coupon[]>("/api/coupons");
+  return readJSON<Coupon[]>(KEYS.coupons, EMPTY_COUPONS);
+}
+
+/** Tambah/perbarui voucher. */
+export async function upsertCoupon(c: Coupon): Promise<void> {
+  if (cloudMode) {
+    await api("/api/coupons", {
+      method: "POST",
+      body: JSON.stringify(c),
+    });
+    return;
+  }
+  const arr = readJSON<Coupon[]>(KEYS.coupons, EMPTY_COUPONS);
+  const exists = arr.some((x) => x.code === c.code);
+  writeJSON(
+    KEYS.coupons,
+    exists ? arr.map((x) => (x.code === c.code ? c : x)) : [c, ...arr],
+  );
+}
+
+export async function deleteCoupon(code: string): Promise<void> {
+  if (cloudMode) {
+    await api(`/api/coupons?code=${encodeURIComponent(code)}`, {
+      method: "DELETE",
+    });
+    return;
+  }
+  writeJSON(
+    KEYS.coupons,
+    readJSON<Coupon[]>(KEYS.coupons, EMPTY_COUPONS).filter(
+      (x) => x.code !== code,
+    ),
+  );
+}
+
+/** Cek kode voucher saat checkout — melempar Error dengan pesan ramah.
+    Server tetap memvalidasi ulang saat pesanan dibuat (anti-ubah client). */
+export async function checkCoupon(
+  code: string,
+  subtotal: number,
+): Promise<Coupon> {
+  const c = code.toUpperCase().trim();
+  if (!c) throw new Error("Masukkan kode voucher dulu ya.");
+  if (cloudMode) {
+    const { coupon } = await api<{ coupon: Coupon }>("/api/coupons/validate", {
+      method: "POST",
+      body: JSON.stringify({ code: c, subtotal }),
+    });
+    return coupon;
+  }
+  const found = readJSON<Coupon[]>(KEYS.coupons, EMPTY_COUPONS).find(
+    (x) => x.code === c,
+  );
+  if (!found) throw new Error("Voucher tidak ditemukan.");
+  const res = couponDiscount(found, subtotal);
+  if (!res.ok) throw new Error(res.error ?? "Voucher tidak berlaku.");
+  return found;
 }
 
 /* ── pengaturan toko ──────────────────────────────────────────── */

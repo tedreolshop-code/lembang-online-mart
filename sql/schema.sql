@@ -47,7 +47,11 @@ create table if not exists orders (
   customer_address text not null,
   note           text,
   payment        text not null check (payment in ('COD','Transfer Bank')),
+  ship_option    text not null default 'reguler'
+                 check (ship_option in ('reguler','xpress')),
   subtotal       int not null default 0,
+  discount       int not null default 0,
+  coupon_code    text,
   shipping       int not null default 0,
   total          int not null default 0
 );
@@ -73,6 +77,10 @@ create table if not exists settings (
   hours          text not null,
   ongkir         int not null default 5000,
   free_ongkir_min int not null default 50000,
+  -- opsi layanan antar & keterangan ongkir (v4)
+  xpress_ongkir  int  not null default 15000,
+  xpress_label   text not null default 'Xpress / Instan (hari yang sama)',
+  ongkir_note    text not null default '',
   -- notifikasi pesanan masuk ke pemilik (Fonnte WA / Telegram)
   notify_provider text not null default 'off'
                   check (notify_provider in ('off','fonnte','telegram')),
@@ -80,7 +88,7 @@ create table if not exists settings (
   notify_target   text not null default '',
   -- tampilan (Admin → Tampilan): warna tema, logo, banner promo
   color_primary   text not null default '#f97316',
-  color_dark      text not null default '#0a3472',
+  color_dark      text not null default '#b91c1c',
   logo_url        text not null default '',
   banners         jsonb not null default '[]'::jsonb
 );
@@ -102,6 +110,19 @@ create table if not exists stock_movements (
   created_at timestamptz not null default now()
 );
 
+create table if not exists coupons (
+  code         text primary key,
+  label        text not null default '',
+  kind         text not null default 'percent' check (kind in ('percent','fixed')),
+  value        int  not null check (value > 0),
+  min_subtotal int  not null default 0,
+  max_uses     int,
+  used_count   int  not null default 0,
+  active       boolean not null default true,
+  expires_at   date,
+  created_at   timestamptz not null default now()
+);
+
 -- ── fungsi transaksi: buat pesanan + kurangi stok atomik ─────
 -- Mengembalikan total pesanan. Melempar error bila stok kurang
 -- (diterjemahkan API menjadi HTTP 409).
@@ -111,7 +132,10 @@ create or replace function create_order(
   p_customer jsonb,   -- {name, phone, address, note}
   p_payment  text,
   p_items    jsonb,   -- [{productId, qty}]
-  p_shipping int
+  p_shipping int,
+  p_discount    int  default 0,
+  p_coupon_code text default null,
+  p_ship_option text default 'reguler'
 ) returns int language plpgsql as $$
 declare
   v_item     jsonb;
@@ -136,15 +160,27 @@ begin
     v_subtotal := v_subtotal + v_product.price * (v_item->>'qty')::int;
   end loop;
 
-  v_total := v_subtotal + coalesce(p_shipping, 0);
+  v_total := greatest(
+    0,
+    v_subtotal + coalesce(p_shipping, 0) - coalesce(p_discount, 0)
+  );
 
   insert into orders (id, channel, status, stock_applied,
                       customer_name, customer_phone, customer_address,
-                      note, payment, subtotal, shipping, total)
+                      note, payment, ship_option, subtotal, discount,
+                      coupon_code, shipping, total)
   values (p_id, p_channel, 'menunggu', true,
           p_customer->>'name', p_customer->>'phone', p_customer->>'address',
-          p_customer->>'note', p_payment, v_subtotal,
+          p_customer->>'note', p_payment,
+          coalesce(nullif(p_ship_option, ''), 'reguler'),
+          v_subtotal, coalesce(p_discount, 0), p_coupon_code,
           coalesce(p_shipping, 0), v_total);
+
+  if p_coupon_code is not null then
+    update coupons
+      set used_count = used_count + 1
+      where upper(code) = upper(p_coupon_code);
+  end if;
 
   for v_item in select * from jsonb_array_elements(p_items) loop
     select * into v_product from products where id = v_item->>'productId';
@@ -173,6 +209,7 @@ alter table orders          enable row level security;
 alter table order_items     enable row level security;
 alter table settings        enable row level security;
 alter table stock_movements enable row level security;
+alter table coupons         enable row level security;
 
 -- publik boleh membaca katalog & pengaturan
 drop policy if exists "publik baca kategori" on categories;

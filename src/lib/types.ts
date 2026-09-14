@@ -42,6 +42,25 @@ export interface OrderItem {
 export type OrderStatus = "menunggu" | "diproses" | "selesai" | "dibatalkan";
 export type PaymentMethod = "COD" | "Transfer Bank";
 export type NotifyProvider = "off" | "fonnte" | "telegram";
+export type ShipOption = "reguler" | "xpress";
+
+/** Voucher potongan harga — dikelola pemilik dari Admin → Voucher */
+export interface Coupon {
+  /** kode yang diketik pembeli, selalu disimpan uppercase */
+  code: string;
+  label: string;
+  /** percent = % dari subtotal · fixed = potongan Rp nominal */
+  kind: "percent" | "fixed";
+  value: number;
+  /** subtotal minimum agar voucher berlaku */
+  minSubtotal: number;
+  /** null = tanpa batas pemakaian */
+  maxUses: number | null;
+  usedCount: number;
+  active: boolean;
+  /** tanggal "YYYY-MM-DD"; null = tanpa kedaluwarsa */
+  expiresAt: string | null;
+}
 
 export interface Order {
   id: string;
@@ -57,8 +76,14 @@ export interface Order {
     note?: string;
   };
   payment: PaymentMethod;
+  /** layanan antar pilihan pembeli (default reguler) */
+  shipOption: ShipOption;
   items: OrderItem[];
   subtotal: number;
+  /** potongan voucher (0 bila tidak pakai) */
+  discount: number;
+  /** kode voucher yang dipakai */
+  coupon?: string;
   shipping: number;
   total: number;
 }

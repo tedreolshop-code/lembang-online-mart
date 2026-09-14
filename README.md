@@ -23,10 +23,10 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 | Detail produk | `/produk/[id]` | Harga, diskon, stok, jumlah, beli |
 | Pencarian | `/cari?q=...` | Cari produk + filter kategori |
 | Keranjang | `/keranjang` | Atur jumlah, ringkasan, tombol pesan |
-| Checkout | `/checkout` | Form alamat + COD/transfer → tersimpan di riwayat |
+| Checkout | `/checkout` | Form alamat + layanan antar (Reguler/Xpress) + voucher + COD/transfer |
 | Riwayat | `/pesanan` | Daftar pesanan + tombol konfirmasi WhatsApp |
 | Favorit | `/favorit` | Produk yang ditandai ♥ |
-| Admin | `/admin` | Kelola produk & pesanan (password: `admin123`) |
+| Admin | `/admin` | Kelola produk, pesanan, voucher & pengaturan (password: `admin123`) |
 | Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan |
 
 ## Notifikasi Pesanan & Laporan
@@ -43,6 +43,29 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
   stok yang sudah dikurangi dan mencatatnya di riwayat stok.
 - **Kebijakan Privasi** (`/privasi`): halaman wajib karena situs mengumpulkan
   nama, No. HP, dan alamat pelanggan (sesuai UU PDP).
+
+## Layanan Antar, Voucher & Struk (v4)
+
+- **Pilihan layanan antar di checkout**: *Reguler (antar warung)* — gratis
+  di atas batas minimum, atau *Xpress/Instan* (biaya sesuai pengaturan,
+  label & harga diatur pemilik di Admin → Pengaturan).
+- **Keterangan ongkir** (kurir, area, estimasi) tampil di keranjang &
+  checkout, isinya diedit dari Admin → Pengaturan.
+- **Voucher**: Admin → 🎟️ Voucher — kode (persen/nominal), minimum belanja,
+  kuota, masa berlaku. Pembeli mengetik kode di checkout; **potongan
+  dihitung ulang oleh server** (tidak bisa dimanipulasi dari browser).
+  Contoh kode sudah dibuatkan migrasi: `HEMAT10`, `ONGKIR5K`.
+- **Cetak struk** (🖨 button): di halaman sukses pesanan, tiap kartu
+  riwayat pesanan, dan tiap pesanan di admin — struk 80mm siap print lewat
+  dialog cetak browser (Chrome/Edge sudah mendukung printer Thermal/Epson).
+- Notifikasi WhatsApp/Telegram kini mencantumkan layanan antar & potongan
+  voucher.
+
+> ⚠️ **Sebelum deploy versi ini**: jalankan `sql/alter-v4.sql` sekali di
+> Supabase SQL Editor (kolom `ship_option`, `discount`, `coupon_code` di
+> orders; tabel `coupons`; fungsi `create_order` versi baru). Tanpa
+> migrasi, website TETAP jalan penuh untuk pesanan reguler tanpa voucher —
+> checkout voucher/Xpress menampilkan pesan "database belum dimigrasi".
 
 ## Manajemen Stok
 
@@ -77,8 +100,9 @@ Pemilik warung mengatur semuanya dari **halaman Admin** (`/admin`) → tab
 
 1. **Nomor WhatsApp pesanan** — ketik `08…`, otomatis dirapikan jadi `62…`.
 2. **Password admin** — berlaku untuk login berikutnya.
-3. **Alamat & jam buka** — tampil di footer dan halaman Tentang.
-4. **Ongkir & batas gratis ongkir** — langsung dipakai di keranjang & checkout.
+3. **Alamat & jam buka** — tampil di halaman Tentang Kami.
+4. **Ongkir, batas gratis ongkir, ongkir Xpress, & keterangannya** —
+   langsung dipakai di keranjang & checkout.
 5. Nama toko & slogan.
 
 Perubahan tersimpan di browser tempat mengedit (localStorage). Nilai bawaan
@@ -161,7 +185,7 @@ menyediakan hook yang sama untuk kedua mode.
 ```
 src/
   app/          → halaman (App Router) + API routes (src/app/api/**)
-  components/   → Header, BottomNav, ProductCard, BannerCarousel, Footer, …
+  components/   → Header, BottomNav, ProductCard, BannerCarousel, …
   lib/          → store.ts (data layer mode ganda), db.ts (Supabase server),
                   auth.ts (sesi admin), cart.tsx, config.ts, whatsapp.ts
   data/seed.ts  → kategori + produk awal

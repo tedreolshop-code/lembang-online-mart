@@ -141,6 +141,12 @@ export default function KeranjangPage() {
             </div>
           </dl>
 
+          {settings.ongkirNote && (
+            <p className="mt-3 rounded-lg bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-500">
+              {settings.ongkirNote}
+            </p>
+          )}
+
           {/* pesan via WhatsApp */}
           <a
             href={waLink(

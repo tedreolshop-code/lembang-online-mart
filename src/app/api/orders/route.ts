@@ -1,5 +1,6 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { rowToOrder, rowToSettings } from "@/lib/rows";
+import { couponDiscount, rowToCoupon } from "@/lib/coupon";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { sendOrderNotification } from "@/lib/notify";
 import { withSecrets } from "@/lib/notify-secrets";
@@ -18,8 +19,8 @@ export async function GET(req: Request) {
   return Response.json((data ?? []).map(rowToOrder));
 }
 
-/** POST: buat pesanan (publik) — harga & stok divalidasi server, stok
-    berkurang atomik lewat fungsi create_order di database */
+/** POST: buat pesanan (publik) — harga, stok, ongkir, dan voucher
+    divalidasi server; stok berkurang atomik lewat fungsi create_order */
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
 
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  const shipOption = body.shipOption === "xpress" ? "xpress" : "reguler";
 
   // pengaturan ongkir dari DB
   const { data: sRow } = await db().from("settings").select("*").eq("id", 1).single();
@@ -66,13 +68,52 @@ export async function POST(req: Request) {
       a + (byId.get(i.productId)?.price ?? 0) * i.qty,
     0,
   );
-  const shipping = subtotal >= s.free_ongkir_min ? 0 : s.ongkir;
+  const xpressOngkir = Number.isFinite(sRow?.xpress_ongkir)
+    ? sRow!.xpress_ongkir
+    : DEFAULT_SETTINGS.xpressOngkir;
+  const shipping =
+    shipOption === "xpress"
+      ? Math.max(0, xpressOngkir)
+      : subtotal >= s.free_ongkir_min
+        ? 0
+        : s.ongkir;
+
+  // voucher divalidasi ulang di sini — client tidak pernah dipercaya
+  let discount = 0;
+  let couponCode: string | null = null;
+  const wantedCoupon = String(body.couponCode ?? "").toUpperCase().trim();
+  if (wantedCoupon) {
+    const { data: crow, error: cerr } = await db()
+      .from("coupons")
+      .select("*")
+      .eq("code", wantedCoupon)
+      .maybeSingle();
+    if (cerr) {
+      return Response.json(
+        {
+          error: /coupons|relation/i.test(cerr.message)
+            ? "Voucher belum tersedia — jalankan sql/alter-v4.sql di Supabase SQL Editor."
+            : cerr.message,
+        },
+        { status: 500 },
+      );
+    }
+    if (!crow) {
+      return Response.json({ error: "Voucher tidak ditemukan." }, { status: 400 });
+    }
+    const res = couponDiscount(rowToCoupon(crow), subtotal);
+    if (!res.ok) {
+      return Response.json({ error: res.error ?? "Voucher tidak berlaku." }, { status: 400 });
+    }
+    discount = res.discount ?? 0;
+    couponCode = wantedCoupon;
+  }
 
   // kode pesanan unik dengan percobaan ulang bila bentrok
   let lastError = "";
   for (let attempt = 0; attempt < 5; attempt++) {
     const id = `LMB-${Math.floor(1000 + Math.random() * 9000)}`;
-    const { error, data } = await db().rpc("create_order", {
+    const baseArgs = {
       p_id: id,
       p_channel: body.channel === "whatsapp" ? "whatsapp" : "form",
       p_customer: {
@@ -87,7 +128,27 @@ export async function POST(req: Request) {
         qty: i.qty,
       })),
       p_shipping: shipping,
+    };
+    // versi v4 (diskon + voucher + opsi antar) dengan fallback ke
+    // fungsi lama bila database belum dimigrasi
+    let { error, data } = await db().rpc("create_order", {
+      ...baseArgs,
+      p_discount: discount,
+      p_coupon_code: couponCode,
+      p_ship_option: shipOption,
     });
+    if (error && /find the function|does not exist/i.test(error.message)) {
+      if (couponCode || shipOption === "xpress") {
+        return Response.json(
+          {
+            error:
+              "Database belum dimigrasi — minta pemilik menjalankan sql/alter-v4.sql di Supabase SQL Editor.",
+          },
+          { status: 503 },
+        );
+      }
+      ({ error, data } = await db().rpc("create_order", baseArgs));
+    }
     if (!error) {
       const { data: rows } = await db()
         .from("orders")

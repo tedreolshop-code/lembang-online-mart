@@ -11,6 +11,12 @@ export interface StoreSettings {
   /** biaya antar flat, gratis jika subtotal mencapai freeOngkirMin */
   ongkir: number;
   freeOngkirMin: number;
+  /** biaya layanan antar cepat (Xpress/Instan) — tidak kena aturan gratis */
+  xpressOngkir: number;
+  /** label opsi Xpress yang tampil di checkout */
+  xpressLabel: string;
+  /** keterangan ongkir (kurir/area/estimasi) — tampil di keranjang & checkout */
+  ongkirNote: string;
   /** password login halaman admin (mode lokal saja; cloud memakai Supabase Auth) */
   adminPassword: string;
   /** notifikasi pesanan masuk ke pemilik */
@@ -79,6 +85,10 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   hours: "Setiap hari · 07.00 – 21.00 WIB",
   ongkir: 5000,
   freeOngkirMin: 50000,
+  xpressOngkir: 15000,
+  xpressLabel: "Xpress / Instan (hari yang sama)",
+  ongkirNote:
+    "Area Lembang & sekitarnya. Reguler: diantar kurir warung maksimal 1×24 jam (gratis untuk belanja di atas batas). Xpress: tiba hari ini juga, biaya tambahan.",
   adminPassword: "admin123",
   notifyProvider: "off",
   notifyToken: "",
@@ -89,8 +99,17 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   banners: DEFAULT_BANNERS,
 };
 
-export function hitungOngkir(settings: StoreSettings, subtotal: number): number {
+export type ShipOption = "reguler" | "xpress";
+
+/** Ongkir untuk satu layanan antar. Reguler mengikuti aturan ambang
+    gratis; Xpress selalu berbayar (tidak kena aturan gratis). */
+export function hitungOngkir(
+  settings: StoreSettings,
+  subtotal: number,
+  option: ShipOption = "reguler",
+): number {
   if (subtotal <= 0) return 0;
+  if (option === "xpress") return Math.max(0, settings.xpressOngkir);
   return subtotal >= settings.freeOngkirMin ? 0 : settings.ongkir;
 }
 
@@ -114,6 +133,16 @@ export function normalizeSettings(raw: Partial<StoreSettings>): StoreSettings {
       ? merged.colorDark
       : DEFAULT_SETTINGS.colorDark,
     logoUrl: typeof merged.logoUrl === "string" ? merged.logoUrl : "",
+    xpressOngkir:
+      Number.isFinite(merged.xpressOngkir) && merged.xpressOngkir >= 0
+        ? Math.round(merged.xpressOngkir)
+        : DEFAULT_SETTINGS.xpressOngkir,
+    xpressLabel:
+      typeof merged.xpressLabel === "string" && merged.xpressLabel.trim()
+        ? merged.xpressLabel
+        : DEFAULT_SETTINGS.xpressLabel,
+    ongkirNote:
+      typeof merged.ongkirNote === "string" ? merged.ongkirNote : "",
     banners:
       (Array.isArray(merged.banners) && merged.banners.length > 0
         ? merged.banners
