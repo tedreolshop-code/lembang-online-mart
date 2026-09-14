@@ -3,7 +3,7 @@
 import { useSettings } from "@/lib/store";
 
 /** Logo LEMBANG ONLINE MART.
-    - Logo (default): ikon tas belanja, untuk header/footer/admin.
+    - Logo (default): ikon tas belanja, untuk header/admin.
     - LogoFull: tas + tulisan lengkap, untuk latar putih.
     Bila pemilik mengunggah logo kustom (Admin → Tampilan), keduanya
     otomatis memakai logo tersebut. */

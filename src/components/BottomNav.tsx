@@ -22,7 +22,7 @@ const ITEMS = [
 /** Menu bawah khusus mobile (header menu tampil mulai md): tetap terlihat
     saat scroll, ikon + label, badge jumlah item di Keranjang. Kategori
     dicapai dari seksi kategori di Beranda (kartu/chip + tombol Lihat
-    Semua Produk) dan link footer. */
+    Semua Produk) dan halaman Tentang Kami. */
 export default function BottomNav() {
   const pathname = usePathname();
   const { count, ready } = useCart();
