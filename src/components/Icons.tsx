@@ -215,13 +215,12 @@ export function CameraIcon(props: IconProps) {
   );
 }
 
-/* ── ikon kategori (garis, ala mockup GrosirMaju) ─────────────── */
+/* ── ikon kategori (garis simpel — siluet saja, tanpa detail kecil) ── */
 
 function BowlIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
       <path d="M3 12h18a9 9 0 0 1-9 9 9 9 0 0 1-9-9z" />
-      <path d="M8 8V6M12 8V5M16 8V6" />
     </svg>
   );
 }
@@ -229,8 +228,7 @@ function BowlIcon(props: IconProps) {
 function BottleIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <path d="M10 2.5h4v3l2.5 3.5V21a.5.5 0 0 1-.5.5H8a.5.5 0 0 1-.5-.5V9L10 5.5v-3z" />
-      <path d="M7.5 13h9" />
+      <path d="M10 3h4v2.5l2 3.5V21a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9l2-3.5V3z" />
     </svg>
   );
 }
@@ -239,7 +237,6 @@ function CupIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
       <path d="M6 8h12l-1.4 12.2a1 1 0 0 1-1 .8H8.4a1 1 0 0 1-1-.8L6 8z" />
-      <path d="M9.5 8 12 3" />
     </svg>
   );
 }
@@ -247,10 +244,7 @@ function CupIcon(props: IconProps) {
 function CookieIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <path d="M12 3a9 9 0 1 0 9 9 3.5 3.5 0 0 1-4.5-3.4A3.5 3.5 0 0 1 13 5.2 3.5 3.5 0 0 1 12 3z" />
-      <circle cx="9" cy="10" r="1" fill="currentColor" stroke="none" />
-      <circle cx="10" cy="15" r="1" fill="currentColor" stroke="none" />
-      <circle cx="14.5" cy="13.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="9" />
     </svg>
   );
 }
@@ -260,7 +254,6 @@ function BabyBottleIcon(props: IconProps) {
     <svg {...base(props)}>
       <path d="M9 8h6v11a2.5 2.5 0 0 1-2.5 2.5h-1A2.5 2.5 0 0 1 9 19V8z" />
       <path d="M10 8V5.5h4V8" />
-      <path d="M9 13h6" />
     </svg>
   );
 }
@@ -268,9 +261,7 @@ function BabyBottleIcon(props: IconProps) {
 function SprayIcon(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <path d="M10 3.5h4V7h-4z" />
-      <path d="M9 10h6l1 11H8l1-11z" />
-      <path d="M15.5 4.5H19M15.5 7h2" />
+      <path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" />
     </svg>
   );
 }
@@ -280,7 +271,6 @@ function PanIcon(props: IconProps) {
     <svg {...base(props)}>
       <circle cx="10" cy="13.5" r="6.5" />
       <path d="M16.5 13.5H22" />
-      <path d="M8 4.5v2M12 4.5v2" />
     </svg>
   );
 }
