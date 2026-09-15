@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useCart, useCartLines } from "@/lib/cart";
 import { hitungOngkir } from "@/lib/config";
-import { useSettings } from "@/lib/store";
+import { useAgentRef, useSettings } from "@/lib/store";
 import { formatRupiah } from "@/lib/format";
+import { lineSubtotal, unitPrice } from "@/lib/pricing";
 import { buildOrderMessage, waLink } from "@/lib/whatsapp";
 import QtySelector from "@/components/QtySelector";
 import ProductImage from "@/components/ProductImage";
@@ -14,8 +15,11 @@ export default function KeranjangPage() {
   const { setQty, removeItem } = useCart();
   const lines = useCartLines();
   const settings = useSettings();
+  // kode referral tersimpan (v6) — reaktif lewat pub-sub store, SSR aman
+  const agentRef = useAgentRef();
 
-  const subtotal = lines.reduce((a, l) => a + l.product.price * l.qty, 0);
+  // harga grosir (v6): tiap baris memakai harga efektif sesuai jumlahnya
+  const subtotal = lines.reduce((a, l) => a + lineSubtotal(l.product, l.qty), 0);
   const ongkir = hitungOngkir(settings, subtotal);
   const total = subtotal + ongkir;
   const kurangGratis = Math.max(0, settings.freeOngkirMin - subtotal);
@@ -49,7 +53,10 @@ export default function KeranjangPage() {
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         {/* daftar barang */}
         <div className="space-y-3">
-          {lines.map(({ product, qty }) => (
+          {lines.map(({ product, qty }) => {
+            const harga = unitPrice(product, qty);
+            const grosir = harga < product.price;
+            return (
             <div
               key={product.id}
               className="flex gap-3 rounded-xl bg-white p-3 shadow-sm"
@@ -81,10 +88,17 @@ export default function KeranjangPage() {
                     <TrashIcon className="h-4.5 w-4.5" />
                   </button>
                 </div>
-                <span className="text-xs text-slate-400">{product.unit}</span>
+                <span className="text-xs text-slate-400">
+                  {product.unit}
+                  {grosir && (
+                    <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                      harga grosir {formatRupiah(harga)}
+                    </span>
+                  )}
+                </span>
                 <div className="mt-auto flex items-center justify-between pt-2">
                   <span className="text-sm font-extrabold text-brand">
-                    {formatRupiah(product.price * qty)}
+                    {formatRupiah(harga * qty)}
                   </span>
                   <QtySelector
                     qty={qty}
@@ -94,7 +108,8 @@ export default function KeranjangPage() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* ringkasan */}
@@ -155,6 +170,7 @@ export default function KeranjangPage() {
                 settings,
                 customer: undefined,
                 payment: undefined,
+                agentCode: agentRef ?? undefined,
               }),
               settings.whatsapp,
             )}

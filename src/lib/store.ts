@@ -7,6 +7,21 @@ import type { ShipOption, StoreSettings } from "./config";
 import { cloudMode, authHeaders } from "./auth";
 import { couponDiscount } from "./coupon";
 import { newOrderId } from "./format";
+import { lineSubtotal, unitPrice } from "./pricing";
+import {
+  DEFAULT_COMMISSION_SETTINGS,
+  commissionBasis,
+  commissionFor,
+  isSelfPurchase,
+  newAgentCode,
+  normalizeAgentCode,
+  readyAtFrom,
+} from "./agent";
+import type {
+  Agent,
+  AgentCommission,
+  CommissionSettings,
+} from "./types";
 import type { Coupon, Order, Product } from "./types";
 
 /* ================================================================
@@ -24,6 +39,10 @@ const KEYS = {
   favorites: "los_favorites_v2",
   settings: "los_settings_v1",
   coupons: "los_coupons_v1",
+  // program agen (v6) — mode lokal menyimpannya seperti voucher
+  agents: "los_agents_v1",
+  commissionSettings: "los_commission_v1",
+  commissions: "los_commissions_v1",
 };
 const MY_ORDERS_KEY = "los_my_orders_v1";
 
@@ -266,6 +285,8 @@ export interface OrderDraft {
   shipOption?: ShipOption;
   /** kode voucher yang sudah divalidasi di server */
   couponCode?: string;
+  /** kode agen yang mengetik/terpasang dari link referral (v6) */
+  agentCode?: string;
 }
 
 /** Buat pesanan. Cloud: harga, stok, ongkir, dan voucher divalidasi
@@ -297,7 +318,8 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     return { product, qty: i.qty };
   });
   const settings = readJSON<StoreSettings>(KEYS.settings, DEFAULT_SETTINGS);
-  const subtotal = lines.reduce((a, l) => a + l.product.price * l.qty, 0);
+  // harga grosir (v6): subtotal & item memakai harga efektif per tier
+  const subtotal = lines.reduce((a, l) => a + lineSubtotal(l.product, l.qty), 0);
   const shipOption: ShipOption = draft.shipOption ?? "reguler";
   const shipping = hitungOngkir(settings, subtotal, shipOption);
 
@@ -315,8 +337,54 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     coupon = c.code;
   }
 
+  // ── komisi agen (v6) — cermin create_order di database ──────────
+  const agentCode = normalizeAgentCode(draft.agentCode);
+  let agentCommission = 0;
+  let commissionRow: AgentCommission | null = null;
+  if (agentCode) {
+    const agent = readJSON<Agent[]>(KEYS.agents, []).find(
+      (a) => a.code === agentCode,
+    );
+    if (agent) {
+      const cs = readJSON<CommissionSettings>(
+        KEYS.commissionSettings,
+        DEFAULT_COMMISSION_SETTINGS,
+      );
+      const basis = commissionBasis(subtotal, discount, cs.basis);
+      let percent = 0;
+      let note = "";
+      if (!cs.aktif) {
+        note = "program komisi sedang tidak aktif";
+      } else if (agent.status !== "aktif") {
+        note = "agen belum aktif";
+      } else if (isSelfPurchase(draft.customer.phone, agent.wa)) {
+        note = "pembelian sendiri — komisi 0";
+      } else if (basis < cs.minOrderAmount) {
+        note = "di bawah minimum belanja untuk komisi";
+      } else {
+        const r = commissionFor(basis, agent.commissionPercent, cs);
+        percent = r.percent;
+        agentCommission = r.amount;
+      }
+      commissionRow = {
+        id: Date.now(),
+        orderId: "", // diisi setelah id pesanan dibuat (di bawah)
+        agentCode,
+        basisAmount: basis,
+        percentUsed: percent,
+        amount: agentCommission,
+        overrideAmount: null,
+        status: agentCommission > 0 ? "pending" : "batal",
+        readyAt: null,
+        paidAt: null,
+        note,
+      };
+    }
+  }
+
+  const orderId = newOrderId();
   const order: Order = {
-    id: newOrderId(),
+    id: orderId,
     createdAt: Date.now(),
     channel: draft.channel,
     status: "menunggu",
@@ -327,7 +395,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     items: lines.map((l) => ({
       productId: l.product.id,
       name: l.product.name,
-      price: l.product.price,
+      price: unitPrice(l.product, l.qty),
       qty: l.qty,
       unit: l.product.unit,
       emoji: l.product.emoji,
@@ -337,7 +405,14 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     coupon,
     shipping,
     total: Math.max(0, subtotal - discount + shipping),
+    agentCode: agentCode || undefined,
+    agentCommission: agentCode ? agentCommission : undefined,
   };
+  if (commissionRow) {
+    commissionRow.orderId = orderId;
+    const ledger = readJSON<AgentCommission[]>(KEYS.commissions, []);
+    writeJSON(KEYS.commissions, [commissionRow, ...ledger]);
+  }
   writeJSON(KEYS.orders, [order, ...readJSON<Order[]>(KEYS.orders, EMPTY_ORDERS)]);
   // kurangi stok (logika deductOrderStock versi lokal)
   writeJSON(
@@ -404,6 +479,7 @@ export async function cancelOrder(o: Order): Promise<void> {
       x.id === o.id ? { ...x, status: "dibatalkan", stockApplied: false } : x,
     ),
   );
+  syncLocalCommission(o.id, o.status, "dibatalkan");
   writeJSON(
     KEYS.products,
     readJSON<Product[]>(KEYS.products, SEED_PRODUCTS).map((p) => {
@@ -427,9 +503,43 @@ export async function updateOrderStatus(
     return;
   }
   const orders = readJSON<Order[]>(KEYS.orders, EMPTY_ORDERS);
+  const before = orders.find((o) => o.id === id)?.status;
   writeJSON(
     KEYS.orders,
     orders.map((o) => (o.id === id ? { ...o, status } : o)),
+  );
+  // ledger komisi mengikuti status (mode lokal) — sama seperti API v6
+  if (status !== before) syncLocalCommission(id, before, status);
+}
+
+/** Selaraskan baris ledger komisi lokal dengan status pesanan (v6). */
+function syncLocalCommission(
+  orderId: string,
+  from: string | undefined,
+  to: Order["status"],
+): void {
+  const ledger = readJSON<AgentCommission[]>(KEYS.commissions, []);
+  if (!ledger.some((c) => c.orderId === orderId)) return;
+  const cs = readJSON<CommissionSettings>(
+    KEYS.commissionSettings,
+    DEFAULT_COMMISSION_SETTINGS,
+  );
+  writeJSON(
+    KEYS.commissions,
+    ledger.map((c) => {
+      if (c.orderId !== orderId) return c;
+      if (to === "selesai" && c.status === "pending" && !c.readyAt) {
+        return { ...c, readyAt: readyAtFrom(Date.now(), cs.holdDays) };
+      }
+      if (to === "dibatalkan" && (c.status === "pending" || c.status === "dibayar")) {
+        return { ...c, status: "batal", note: "pesanan dibatalkan" };
+      }
+      if (from === "dibatalkan" && to !== "dibatalkan" && c.status === "batal" &&
+          c.note === "pesanan dibatalkan" && c.amount > 0) {
+        return { ...c, status: "pending" };
+      }
+      return c;
+    }),
   );
 }
 
@@ -563,4 +673,213 @@ export async function seedDatabase(): Promise<void> {
   await api("/api/seed", { method: "POST" });
   await refreshProducts();
   await refreshSettings();
+}
+
+/* ── program agen (v6; mode ganda seperti voucher) ────────────── */
+
+const EMPTY_AGENTS: Agent[] = [];
+const EMPTY_COMMISSIONS: AgentCommission[] = [];
+
+/** Daftar agen untuk halaman admin (butuh login di mode cloud). */
+export async function listAgents(): Promise<Agent[]> {
+  if (cloudMode) return api<Agent[]>("/api/agents");
+  return readJSON<Agent[]>(KEYS.agents, EMPTY_AGENTS);
+}
+
+/** Tambah/perbarui agen. Code kosong → kode otomatis. */
+export async function upsertAgent(a: Agent): Promise<string> {
+  if (cloudMode) {
+    const res = await api<{ ok: boolean; code: string }>("/api/agents", {
+      method: "POST",
+      body: JSON.stringify(a),
+    });
+    return res.code;
+  }
+  const code = normalizeAgentCode(a.code) || newAgentCode();
+  const clean: Agent = {
+    ...a,
+    code,
+    wa: a.wa.replace(/[^0-9]/g, ""),
+    commissionPercent:
+      a.commissionPercent == null
+        ? null
+        : Math.min(20, Math.max(1, Math.round(a.commissionPercent))),
+  };
+  const arr = readJSON<Agent[]>(KEYS.agents, EMPTY_AGENTS);
+  const exists = arr.some((x) => x.code === code);
+  writeJSON(
+    KEYS.agents,
+    exists ? arr.map((x) => (x.code === code ? clean : x)) : [clean, ...arr],
+  );
+  return code;
+}
+
+export async function deleteAgent(code: string): Promise<void> {
+  if (cloudMode) {
+    await api(`/api/agents?code=${encodeURIComponent(code)}`, {
+      method: "DELETE",
+    });
+    return;
+  }
+  const used = readJSON<AgentCommission[]>(KEYS.commissions, []).some(
+    (c) => c.agentCode === code,
+  );
+  if (used) throw new Error("Agen punya riwayat komisi — nonaktifkan saja.");
+  writeJSON(
+    KEYS.agents,
+    readJSON<Agent[]>(KEYS.agents, EMPTY_AGENTS).filter((x) => x.code !== code),
+  );
+}
+
+/** Aturan komisi global (Admin → Agen). */
+export async function getCommissionSettings(): Promise<CommissionSettings> {
+  if (cloudMode) {
+    const res = await api<{ settings: CommissionSettings }>("/api/commission");
+    return res.settings;
+  }
+  return {
+    ...DEFAULT_COMMISSION_SETTINGS,
+    ...readJSON<Partial<CommissionSettings>>(KEYS.commissionSettings, {}),
+  };
+}
+
+export async function saveCommissionSettings(
+  s: CommissionSettings,
+): Promise<void> {
+  if (cloudMode) {
+    await api("/api/commission", { method: "PUT", body: JSON.stringify(s) });
+    return;
+  }
+  writeJSON(KEYS.commissionSettings, s);
+}
+
+/** Ledger komisi terbaru (maks. 200 baris — sama seperti API). */
+export async function listCommissions(): Promise<AgentCommission[]> {
+  if (cloudMode) {
+    const res = await api<{ commissions: AgentCommission[] }>(
+      "/api/commission",
+    );
+    return res.commissions;
+  }
+  return readJSON<AgentCommission[]>(KEYS.commissions, EMPTY_COMMISSIONS);
+}
+
+/** Aksi admin pada satu baris komisi: bayar / batal / ulang. */
+export async function commissionAction(
+  c: AgentCommission,
+  action: "bayar" | "batal" | "ulang",
+): Promise<void> {
+  if (cloudMode) {
+    await api("/api/commission", {
+      method: "PATCH",
+      body: JSON.stringify({ id: c.id, action }),
+    });
+    return;
+  }
+  const now = new Date().toISOString();
+  writeJSON(
+    KEYS.commissions,
+    readJSON<AgentCommission[]>(KEYS.commissions, []).map((x) =>
+      x.id === c.id
+        ? {
+            ...x,
+            status:
+              action === "bayar" ? "dibayar" : action === "batal" ? "batal" : "pending",
+            paidAt: action === "bayar" ? now : x.paidAt,
+            note: action === "batal" ? "dibatalkan admin" : x.note,
+          }
+        : x,
+    ),
+  );
+}
+
+/** Koreksi manual nilai komisi (null = hapus koreksi). */
+export async function overrideCommission(
+  c: AgentCommission,
+  amount: number | null,
+): Promise<void> {
+  if (cloudMode) {
+    await api("/api/commission", {
+      method: "PATCH",
+      body: JSON.stringify({ id: c.id, override: amount }),
+    });
+    return;
+  }
+  writeJSON(
+    KEYS.commissions,
+    readJSON<AgentCommission[]>(KEYS.commissions, []).map((x) =>
+      x.id === c.id ? { ...x, overrideAmount: amount } : x,
+    ),
+  );
+}
+
+/** Catat klik link referral + info agen untuk banner checkout.
+    Mode lokal membaca daftar localStorage; mode cloud lewat API. */
+export async function trackAgentRef(
+  code: string,
+): Promise<{ ok: boolean; nama?: string; linkDays?: number }> {
+  const c = normalizeAgentCode(code);
+  if (!c) return { ok: false };
+  if (cloudMode) {
+    try {
+      return await api<{ ok: boolean; nama?: string; linkDays?: number }>(
+        "/api/agents/click",
+        { method: "POST", body: JSON.stringify({ code: c }) },
+      );
+    } catch {
+      return { ok: false };
+    }
+  }
+  const agent = readJSON<Agent[]>(KEYS.agents, EMPTY_AGENTS).find(
+    (a) => a.code === c,
+  );
+  if (!agent || agent.status !== "aktif") return { ok: false };
+  const arr = readJSON<Agent[]>(KEYS.agents, EMPTY_AGENTS).map((a) =>
+    a.code === c ? { ...a, totalKlik: a.totalKlik + 1 } : a,
+  );
+  writeJSON(KEYS.agents, arr);
+  const cs = readJSON<CommissionSettings>(
+    KEYS.commissionSettings,
+    DEFAULT_COMMISSION_SETTINGS,
+  );
+  return { ok: true, nama: agent.nama, linkDays: cs.linkDays };
+}
+
+/* ── kode referral dari link ?ref=KODE (v6) ─────────────────── */
+/* Ditulis RefCapture (layout) saat pengujung datang dari tautan agen,
+   dibaca reaktif oleh checkout & keranjang. lewat pub-sub store —
+   tanpa efek setState di halaman. */
+
+const REF_KEY = "los_agent_ref_v1";
+
+/** Simpan kode referral + masa berlaku (link_days). days <= 1 → tanpa batas. */
+export function storeAgentRef(code: string, days: number): void {
+  if (typeof window === "undefined") return;
+  const c = normalizeAgentCode(code);
+  if (!c) return;
+  const until = days > 1 ? Date.now() + days * 86400000 : 0; // 0 = tak kedaluwarsa
+  localStorage.setItem(REF_KEY, JSON.stringify({ code: c, until }));
+  emit();
+}
+
+function readAgentRefNow(): string | null {
+  try {
+    const raw = window.localStorage.getItem(REF_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw) as { code?: string; until?: number };
+    const c = normalizeAgentCode(o.code ?? "");
+    if (!c) return null;
+    if (o.until && Date.now() > o.until) {
+      window.localStorage.removeItem(REF_KEY);
+      return null;
+    }
+    return c;
+  } catch {
+    return null;
+  }
+}
+
+/** Kode agen tersimpan dari link referral (null di SSR / kosong / kedaluwarsa). */
+export function useAgentRef(): string | null {
+  return useSyncExternalStore(subscribe, readAgentRefNow, () => null);
 }

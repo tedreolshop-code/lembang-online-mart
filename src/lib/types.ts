@@ -23,6 +23,15 @@ export interface Product {
   isBestSeller?: boolean;
   isNew?: boolean;
   description?: string;
+  /** harga grosir bertingkat (v6): berlaku bila jumlah beli >= minQty */
+  tiers?: PriceTier[];
+}
+
+/** Satu tingkat harga grosir — dikelola pemilik dari Admin → Produk */
+export interface PriceTier {
+  /** jumlah minimum pembelian agar harga ini berlaku (harus > 1) */
+  minQty: number;
+  price: number;
 }
 
 export interface CartItem {
@@ -86,4 +95,67 @@ export interface Order {
   coupon?: string;
   shipping: number;
   total: number;
+  /** kode agen yang tercatat pada pesanan ini (program agen v6) */
+  agentCode?: string;
+  /** nilai komisi tersimpan (snapshot saat pesanan dibuat) */
+  agentCommission?: number;
+}
+
+/* ── program agen (v6) ──────────────────────────────────────────── */
+
+/** Aturan komisi global yang diatur pemilik (Admin → Agen) */
+export interface CommissionSettings {
+  /** program aktif/nonaktif; nonaktif = tidak ada komisi baru */
+  aktif: boolean;
+  /** percent = % dari basis · fixed = nominal Rp tetap per pesanan */
+  kind: "percent" | "fixed";
+  /** persen (1–20) atau nominal Rp (untuk kind "fixed") */
+  value: number;
+  /** dasar perhitungan: subtotal sebelum atau sesudah potongan voucher */
+  basis: "subtotal" | "after_discount";
+  /** lantai komisi per pesanan (0 = tanpa) */
+  minAmount: number;
+  /** plafon komisi per pesanan (0 = tanpa) */
+  maxAmount: number;
+  /** minimum nilai pesanan agar komisi berlaku (0 = tanpa) */
+  minOrderAmount: number;
+  /** masa berlaku kode dari link referral (hari) */
+  linkDays: number;
+  /** masa tunggu sebelum komisi bisa dicairkan (hari) */
+  holdDays: number;
+}
+
+/** Agen penjual — data pribadi (termasuk nomor rekening) tidak pernah publik */
+export interface Agent {
+  code: string;
+  nama: string;
+  wa: string;
+  alamat: string;
+  payMethod: "transfer" | "ewallet";
+  /** nomor rekening / e-wallet tujuan pencairan */
+  payTarget: string;
+  /** komisi khusus agen ini; null = ikut aturan global */
+  commissionPercent: number | null;
+  status: "pending" | "aktif" | "nonaktif";
+  totalKlik: number;
+  createdAt?: string;
+}
+
+export type CommissionStatus = "pending" | "dibayar" | "batal";
+
+/** Ledger komisi: angka hasil (snapshot), bukan hitungan ulang */
+export interface AgentCommission {
+  id?: number;
+  orderId: string;
+  agentCode: string;
+  basisAmount: number;
+  percentUsed: number;
+  amount: number;
+  /** koreksi manual oleh admin (bila ada, ini yang dipakai) */
+  overrideAmount: number | null;
+  status: CommissionStatus;
+  /** diisi saat pesanan selesai: kapan komisi boleh dicairkan */
+  readyAt: string | null;
+  paidAt: string | null;
+  note: string;
 }

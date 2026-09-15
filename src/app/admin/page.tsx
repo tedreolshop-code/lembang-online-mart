@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon } from "@/lib/store";
+import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon, listAgents, upsertAgent, deleteAgent, getCommissionSettings, saveCommissionSettings, listCommissions, commissionAction, overrideCommission } from "@/lib/store";
 import { printOrderStruk } from "@/lib/printStruk";
 import { cloudMode, adminLogin, adminLogout, hasAdminSession, localLogin, authHeaders } from "@/lib/auth";
 import { DEFAULT_SETTINGS, formatWaDigits, type StoreSettings } from "@/lib/config";
 import { formatRupiah, formatDateTime } from "@/lib/format";
+import { agentShareLink, DEFAULT_COMMISSION_SETTINGS, effectiveCommission, isCommissionReady } from "@/lib/agent";
+import { normalizeTiers } from "@/lib/pricing";
 import { CATEGORIES } from "@/data/seed";
-import type { Coupon, Order, OrderStatus, Product } from "@/lib/types";
+import type { Agent, AgentCommission, CommissionSettings, Coupon, Order, OrderStatus, PriceTier, Product } from "@/lib/types";
 import { BagIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from "@/components/Icons";
 import Logo from "@/components/Logo";
 import { applyThemeVars, clearThemeVars } from "@/components/ThemeStyle";
@@ -143,7 +145,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<
-    "produk" | "stok" | "pesanan" | "laporan" | "voucher" | "pengaturan" | "tampilan"
+    "produk" | "stok" | "pesanan" | "laporan" | "voucher" | "agen" | "pengaturan" | "tampilan"
   >("produk");
   const orders = useOrders();
   const pending = orders.filter((o) => o.status === "menunggu").length;
@@ -201,6 +203,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         <TabButton active={tab === "voucher"} onClick={() => setTab("voucher")}>
           🎟️ Voucher
         </TabButton>
+        <TabButton active={tab === "agen"} onClick={() => setTab("agen")}>
+          🤝 Agen
+        </TabButton>
         <TabButton
           active={tab === "tampilan"}
           onClick={() => setTab("tampilan")}
@@ -225,6 +230,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         <LaporanTab />
       ) : tab === "voucher" ? (
         <VoucherTab />
+      ) : tab === "agen" ? (
+        <AgenTab />
       ) : tab === "tampilan" ? (
         <TampilanTab />
       ) : (
@@ -442,7 +449,8 @@ function ProductForm({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!p.name.trim() || p.price <= 0) return;
-    onSave(p);
+    // tier grosir dibersihkan terhadap harga final (minQty > 1, harga < normal)
+    onSave({ ...p, tiers: normalizeTiers(p.tiers ?? [], p.price) });
   };
 
   return (
@@ -612,6 +620,87 @@ function ProductForm({
           <Check label="Promo 🔥" checked={!!p.isPromo} onChange={(v) => set({ isPromo: v })} />
           <Check label="Terlaris ⭐" checked={!!p.isBestSeller} onChange={(v) => set({ isBestSeller: v })} />
           <Check label="Baru 🆕" checked={!!p.isNew} onChange={(v) => set({ isNew: v })} />
+        </div>
+
+        {/* harga grosir (v6) */}
+        <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-slate-700">
+              🏷️ Harga Grosir (opsional)
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                set({
+                  tiers: [
+                    ...(p.tiers ?? []),
+                    { minQty: ((p.tiers?.at(-1)?.minQty ?? 1) + 1), price: p.price },
+                  ],
+                })
+              }
+              className="rounded-lg border-2 border-brand/40 px-2.5 py-1 text-xs font-bold text-brand hover:bg-brand-soft"
+            >
+              + Tambah tingkat
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Harga lebih murah saat pembeli mengambil sejumlah minimum. Kosong =
+            hanya harga normal.
+          </p>
+          {(p.tiers ?? []).length === 0 ? (
+            <p className="mt-2 text-xs italic text-slate-400">
+              Belum ada tingkat grosir.
+            </p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {(p.tiers ?? []).map((t, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <label className="flex flex-1 items-center gap-1 text-xs text-slate-500">
+                    Beli ≥
+                    <input
+                      type="number"
+                      min={2}
+                      value={t.minQty}
+                      onChange={(e) =>
+                        set({
+                          tiers: (p.tiers ?? []).map((x, j) =>
+                            j === i ? { ...x, minQty: Number(e.target.value) } : x,
+                          ) as PriceTier[],
+                        })
+                      }
+                      className="input w-20"
+                    />
+                  </label>
+                  <label className="flex flex-1 items-center gap-1 text-xs text-slate-500">
+                    Harga Rp
+                    <input
+                      type="number"
+                      min={0}
+                      value={t.price}
+                      onChange={(e) =>
+                        set({
+                          tiers: (p.tiers ?? []).map((x, j) =>
+                            j === i ? { ...x, price: Number(e.target.value) } : x,
+                          ) as PriceTier[],
+                        })
+                      }
+                      className="input w-28"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    aria-label="Hapus tingkat grosir"
+                    onClick={() =>
+                      set({ tiers: (p.tiers ?? []).filter((_, j) => j !== i) as PriceTier[] })
+                    }
+                    className="rounded-lg border border-slate-200 p-1.5 text-slate-400 hover:border-red-300 hover:text-red-500"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -991,6 +1080,18 @@ function PesananTab() {
               <span className="ml-2 text-xs text-slate-400">
                 {formatDateTime(o.createdAt)}
               </span>
+              {o.agentCode && (
+                <span
+                  className="ml-2 rounded bg-navy-soft px-1.5 py-0.5 font-mono text-[10px] font-bold text-navy"
+                  title={
+                    (o.agentCommission ?? 0) > 0
+                      ? `Komisi agen ${formatRupiah(o.agentCommission ?? 0)}`
+                      : "Agen tercatat tanpa komisi (lihat tab Agen)"
+                  }
+                >
+                  🤝 {o.agentCode}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {o.status === "dibatalkan" && (
@@ -1355,8 +1456,637 @@ function VoucherTab() {
   );
 }
 
-function slugify(name: string): string {
+/* ── tab agen (v6): aturan komisi + daftar agen + ledger pencairan ── */
+
+const AGENT_STATUS_LABEL: Record<Agent["status"], string> = {
+  pending: "Menunggu persetujuan",
+  aktif: "Aktif",
+  nonaktif: "Nonaktif",
+};
+
+const EMPTY_AGENT_FORM = {
+  code: "",
+  nama: "",
+  wa: "",
+  alamat: "",
+  payMethod: "ewallet" as Agent["payMethod"],
+  payTarget: "",
+  commissionPercent: "",
+  status: "pending" as Agent["status"],
+};
+
+function AgenTab() {
+  const [agents, setAgents] = useState<Agent[] | null>(null);
+  const [commissions, setCommissions] = useState<AgentCommission[] | null>(null);
+  const [settings, setSettings] = useState<CommissionSettings>(DEFAULT_COMMISSION_SETTINGS);
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+  const [now, setNow] = useState(0);
+  const [form, setForm] = useState(EMPTY_AGENT_FORM);
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+
+  const flash = (t: string) => {
+    setMsg(t);
+    setTimeout(() => setMsg(""), 4000);
+  };
+
+  const load = () =>
+    Promise.all([listAgents(), listCommissions(), getCommissionSettings()])
+      .then(([a, c, s]) => {
+        setAgents(a);
+        setCommissions(c);
+        setSettings(s);
+        setNow(Date.now());
+        setErr("");
+      })
+      .catch((e: unknown) => {
+        setAgents([]);
+        setCommissions([]);
+        setErr(e instanceof Error ? e.message : "Gagal memuat data agen.");
+      });
+  useEffect(() => {
+    load();
+  }, []);
+
+  const set = (patch: Partial<typeof form>) =>
+    setForm((prev) => ({ ...prev, ...patch }));
+
+  /* ── aturan komisi ──────────────────────────────────────────── */
+  const setS = (patch: Partial<CommissionSettings>) =>
+    setSettings((prev) => ({ ...prev, ...patch }));
+
+  const saveAturan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await saveCommissionSettings(settings);
+      flash("Aturan komisi tersimpan — pesanan baru memakai aturan ini.");
+    } catch (e2) {
+      flash(e2 instanceof Error ? `Gagal: ${e2.message}` : "Gagal menyimpan aturan.");
+    }
+  };
+
+  /* ── agen ───────────────────────────────────────────────────── */
+  const submitAgen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const code = await upsertAgent({
+        code: form.code,
+        nama: form.nama.trim(),
+        wa: formatWaDigits(form.wa),
+        alamat: form.alamat.trim(),
+        payMethod: form.payMethod,
+        payTarget: form.payTarget.trim(),
+        commissionPercent:
+          form.commissionPercent.trim() === ""
+            ? null
+            : Math.round(Number(form.commissionPercent)),
+        status: form.status,
+        totalKlik: agents?.find((a) => a.code === form.code)?.totalKlik ?? 0,
+      });
+      flash(`Agen tersimpan. Kode: ${code} — bagikan tautan referral-nya.`);
+      setForm(EMPTY_AGENT_FORM);
+      setEditingCode(null);
+      load();
+    } catch (e2) {
+      flash(e2 instanceof Error ? `Gagal: ${e2.message}` : "Gagal menyimpan agen.");
+    }
+  };
+
+  const editAgen = (a: Agent) => {
+    setForm({
+      code: a.code,
+      nama: a.nama,
+      wa: a.wa,
+      alamat: a.alamat,
+      payMethod: a.payMethod,
+      payTarget: a.payTarget,
+      commissionPercent: a.commissionPercent == null ? "" : String(a.commissionPercent),
+      status: a.status,
+    });
+    setEditingCode(a.code);
+  };
+
+  const setStatusAgen = async (a: Agent, status: Agent["status"]) => {
+    await upsertAgent({ ...a, status }).catch((e: unknown) =>
+      flash(e instanceof Error ? e.message : "Gagal mengubah status."),
+    );
+    load();
+  };
+
+  const hapusAgen = async (a: Agent) => {
+    if (!confirm(`Hapus agen ${a.nama} (${a.code})?`)) return;
+    await deleteAgent(a.code).catch((e: unknown) =>
+      flash(e instanceof Error ? e.message : "Gagal menghapus."),
+    );
+    load();
+  };
+
+  const salinLink = async (a: Agent) => {
+    const link =
+      typeof window === "undefined"
+        ? a.code
+        : agentShareLink(a.code, window.location.origin);
+    try {
+      await navigator.clipboard.writeText(link);
+      flash(`Tautan referral ${a.code} disalin — tinggal dibagikan.`);
+    } catch {
+      flash(`Tautan: ${link}`);
+    }
+  };
+
+  /* ── ledger komisi ──────────────────────────────────────────── */
+  const aksi = async (
+    c: AgentCommission,
+    action: "bayar" | "batal" | "ulang",
+  ) => {
+    try {
+      await commissionAction(c, action);
+      load();
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Aksi gagal.");
+    }
+  };
+
+  const koreksi = async (c: AgentCommission) => {
+    const cur = effectiveCommission(c);
+    const raw = prompt(
+      `Koreksi manual nilai komisi pesanan ${c.orderId} (Rp).\nKosongkan untuk menghapus koreksi.`,
+      String(cur),
+    );
+    if (raw === null) return;
+    const v = raw.trim() === "" ? null : Math.max(0, Math.round(Number(raw)));
+    try {
+      await overrideCommission(c, v);
+      load();
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Koreksi gagal.");
+    }
+  };
+
+  const totals = (commissions ?? []).reduce(
+    (acc, c) => {
+      const n = effectiveCommission(c);
+      if (c.status === "pending") {
+        acc.pending += n;
+        if (isCommissionReady(c, now)) acc.ready += n;
+      } else if (c.status === "dibayar") acc.paid += n;
+      return acc;
+    },
+    { pending: 0, ready: 0, paid: 0 },
+  );
+
   return (
+    <div className="space-y-4">
+      <div className="rounded-xl bg-navy-soft p-4 text-sm text-navy">
+        🤝 Pembeli yang datang dari <b>tautan referral agen</b> (atau mengetik
+        kode agen di checkout) otomatis tercatat. Komisi dihitung saat pesanan
+        dibuat, lalu bisa dicairkan setelah masa tunggu lewat{" "}
+        <b>pesanan selesai</b>. Nilai komisi tersimpan sebagai snapshot —
+        mengubah aturan tidak mengubah pesanan lama.
+      </div>
+
+      {err && (
+        <div className="rounded-xl bg-amber-50 p-4 text-sm font-semibold text-amber-700">
+          ⚠️ {err}
+        </div>
+      )}
+      {msg && (
+        <div className="rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+          {msg}
+        </div>
+      )}
+
+      {/* ── aturan komisi ── */}
+      <form
+        onSubmit={saveAturan}
+        className="grid gap-3 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <h3 className="font-extrabold text-slate-800 sm:col-span-2 lg:col-span-4">
+          ⚙️ Aturan Komisi
+        </h3>
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+          <input
+            type="checkbox"
+            checked={settings.aktif}
+            onChange={(e) => setS({ aktif: e.target.checked })}
+            className="h-4 w-4 accent-[#f97316]"
+          />
+          Program aktif
+        </label>
+        <label className="block">
+          <span className="form-label">Jenis</span>
+          <select
+            value={settings.kind}
+            onChange={(e) =>
+              setS({ kind: e.target.value as CommissionSettings["kind"] })
+            }
+            className="input"
+          >
+            <option value="percent">Persen (%)</option>
+            <option value="fixed">Nominal Rp tetap / pesanan</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="form-label">
+            {settings.kind === "percent" ? "Nilai % (1–20) *" : "Nilai Rp *"}
+          </span>
+          <input
+            type="number"
+            min={settings.kind === "percent" ? 1 : 0}
+            max={settings.kind === "percent" ? 20 : undefined}
+            required
+            value={settings.value}
+            onChange={(e) => setS({ value: Math.round(Number(e.target.value)) })}
+            className="input"
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">Dasar perhitungan</span>
+          <select
+            value={settings.basis}
+            onChange={(e) =>
+              setS({ basis: e.target.value as CommissionSettings["basis"] })
+            }
+            className="input"
+          >
+            <option value="after_discount">Setelah potongan voucher</option>
+            <option value="subtotal">Subtotal penuh</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="form-label">Min. belanja (Rp, 0 = tanpa)</span>
+          <input
+            type="number"
+            min={0}
+            value={settings.minOrderAmount}
+            onChange={(e) => setS({ minOrderAmount: Math.round(Number(e.target.value)) })}
+            className="input"
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">Lantai komisi (Rp, 0 = tanpa)</span>
+          <input
+            type="number"
+            min={0}
+            value={settings.minAmount}
+            onChange={(e) => setS({ minAmount: Math.round(Number(e.target.value)) })}
+            className="input"
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">Plafon komisi (Rp, 0 = tanpa)</span>
+          <input
+            type="number"
+            min={0}
+            value={settings.maxAmount}
+            onChange={(e) => setS({ maxAmount: Math.round(Number(e.target.value)) })}
+            className="input"
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">Masa berlaku tautan (hari)</span>
+          <input
+            type="number"
+            min={1}
+            value={settings.linkDays}
+            onChange={(e) => setS({ linkDays: Math.max(1, Math.round(Number(e.target.value))) })}
+            className="input"
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">Masa tunggu cair (hari)</span>
+          <input
+            type="number"
+            min={0}
+            value={settings.holdDays}
+            onChange={(e) => setS({ holdDays: Math.max(0, Math.round(Number(e.target.value))) })}
+            className="input"
+          />
+        </label>
+        <div className="flex items-end">
+          <button
+            type="submit"
+            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
+          >
+            Simpan Aturan
+          </button>
+        </div>
+      </form>
+
+      {/* ── daftar agen ── */}
+      <form
+        onSubmit={submitAgen}
+        className="grid gap-3 rounded-xl bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <h3 className="font-extrabold text-slate-800 sm:col-span-2 lg:col-span-4">
+          {editingCode ? `✏️ Edit Agen: ${form.nama} (${form.code})` : "➕ Daftarkan Agen Baru"}
+        </h3>
+        <label className="block">
+          <span className="form-label">Nama *</span>
+          <input
+            value={form.nama}
+            onChange={(e) => set({ nama: e.target.value })}
+            placeholder="cth: Bu Iis"
+            required
+            className="input"
+            maxLength={80}
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">No. WhatsApp *</span>
+          <input
+            value={form.wa}
+            onChange={(e) => set({ wa: e.target.value })}
+            placeholder="0812xxxxxxx"
+            required
+            inputMode="tel"
+            className="input"
+            maxLength={20}
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">Alamat (opsional)</span>
+          <input
+            value={form.alamat}
+            onChange={(e) => set({ alamat: e.target.value })}
+            className="input"
+            maxLength={200}
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">Status</span>
+          <select
+            value={form.status}
+            onChange={(e) => set({ status: e.target.value as Agent["status"] })}
+            className="input"
+          >
+            <option value="pending">Pending</option>
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="form-label">Bayar via</span>
+          <select
+            value={form.payMethod}
+            onChange={(e) =>
+              set({ payMethod: e.target.value as Agent["payMethod"] })
+            }
+            className="input"
+          >
+            <option value="ewallet">E-wallet</option>
+            <option value="transfer">Transfer bank</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="form-label">No. rekening / e-wallet</span>
+          <input
+            value={form.payTarget}
+            onChange={(e) => set({ payTarget: e.target.value })}
+            placeholder="data pribadi — tidak pernah tampil ke pembeli"
+            className="input"
+            maxLength={80}
+          />
+        </label>
+        <label className="block">
+          <span className="form-label">Komisi khusus % (kosong = ikut aturan)</span>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={form.commissionPercent}
+            onChange={(e) => set({ commissionPercent: e.target.value })}
+            placeholder="mis. 10"
+            className="input"
+          />
+        </label>
+        <div className="flex items-end gap-2">
+          <button
+            type="submit"
+            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
+          >
+            {editingCode ? "Simpan Perubahan" : "Daftarkan Agen"}
+          </button>
+          {editingCode && (
+            <button
+              type="button"
+              onClick={() => {
+                setForm(EMPTY_AGENT_FORM);
+                setEditingCode(null);
+              }}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
+            >
+              Batal
+            </button>
+          )}
+        </div>
+      </form>
+
+      {!agents ? (
+        <p className="text-sm text-slate-400">Memuat data agen…</p>
+      ) : agents.length === 0 ? (
+        <div className="rounded-xl bg-white p-8 text-center shadow-sm">
+          <p className="text-3xl">🤝</p>
+          <p className="mt-2 text-sm font-bold text-slate-600">
+            Belum ada agen — daftarkan di atas
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {agents.map((a) => (
+            <div
+              key={a.code}
+              className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 shadow-sm"
+            >
+              <div className="min-w-44 flex-1">
+                <span className="text-sm font-bold text-slate-800">{a.nama}</span>
+                <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-bold text-slate-600">
+                  {a.code}
+                </span>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {a.wa}
+                  {a.commissionPercent != null && ` · komisi khusus ${a.commissionPercent}%`}
+                  {a.payTarget && ` · ${a.payMethod}: ${a.payTarget}`}
+                  {` · ${a.totalKlik} klik`}
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                  a.status === "aktif"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : a.status === "pending"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-slate-200 text-slate-500"
+                }`}
+              >
+                {AGENT_STATUS_LABEL[a.status]}
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => salinLink(a)}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:border-brand/40 hover:text-brand"
+                >
+                  🔗 Tautan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editAgen(a)}
+                  aria-label={`Edit agen ${a.nama}`}
+                  className="rounded-lg border border-slate-200 p-1.5 text-slate-400 hover:border-brand/40 hover:text-brand"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </button>
+                {a.status !== "aktif" ? (
+                  <button
+                    type="button"
+                    onClick={() => setStatusAgen(a, "aktif")}
+                    className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                  >
+                    Aktifkan
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStatusAgen(a, "nonaktif")}
+                    className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500 hover:bg-slate-200"
+                  >
+                    Nonaktifkan
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => hapusAgen(a)}
+                  aria-label={`Hapus agen ${a.nama}`}
+                  className="rounded-lg border border-slate-200 p-1.5 text-slate-400 transition hover:border-red-300 hover:text-red-500"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── ledger komisi ── */}
+      <div className="rounded-xl bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-extrabold text-slate-800">📒 Komisi Terjadi</h3>
+          <div className="flex gap-2 text-[11px] font-bold">
+            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">
+              menunggu {formatRupiah(totals.pending)}
+            </span>
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">
+              siap cair {formatRupiah(totals.ready)}
+            </span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
+              dibayar {formatRupiah(totals.paid)}
+            </span>
+          </div>
+        </div>
+        {!commissions ? (
+          <p className="mt-3 text-sm text-slate-400">Memuat ledger…</p>
+        ) : commissions.length === 0 ? (
+          <p className="mt-3 text-sm italic text-slate-400">
+            Belum ada komisi tercatat — pesanan dengan kode agen akan muncul di sini.
+          </p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {commissions.map((c) => {
+              const n = effectiveCommission(c);
+              const ready = isCommissionReady(c, now);
+              return (
+                <div
+                  key={c.id ?? c.orderId}
+                  className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 p-3"
+                >
+                  <div className="min-w-44 flex-1">
+                    <span className="font-mono text-xs font-bold text-slate-700">
+                      {c.orderId}
+                    </span>
+                    <span className="ml-2 font-mono text-[11px] text-slate-400">
+                      {c.agentCode}
+                    </span>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {n > 0
+                        ? `${c.percentUsed > 0 ? `${c.percentUsed}% · ` : ""}basis ${formatRupiah(c.basisAmount)}`
+                        : c.note || "tanpa catatan"}
+                      {c.overrideAmount != null && " · dikoreksi admin"}
+                      {c.readyAt &&
+                        (ready
+                          ? " · siap cair"
+                          : ` · cair ${formatDateTime(Date.parse(c.readyAt))}`)}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                      c.status === "dibayar"
+                        ? "bg-slate-100 text-slate-600"
+                        : c.status === "pending"
+                          ? ready
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
+                          : "bg-red-50 text-red-600"
+                    }`}
+                  >
+                    {c.status === "pending"
+                      ? ready
+                        ? "siap dicairkan"
+                        : "menunggu"
+                      : c.status}
+                  </span>
+                  <span className="w-24 text-right text-sm font-extrabold text-slate-800">
+                    {formatRupiah(n)}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {c.status === "pending" && (
+                      <button
+                        type="button"
+                        onClick={() => aksi(c, "bayar")}
+                        disabled={!ready && n > 0}
+                        title={ready ? "Tandai sudah dibayar" : "Belum lewat masa tunggu"}
+                        className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        Bayar
+                      </button>
+                    )}
+                    {c.status !== "batal" && (
+                      <button
+                        type="button"
+                        onClick={() => aksi(c, "batal")}
+                        className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-500 hover:border-red-300 hover:text-red-500"
+                      >
+                        Batal
+                      </button>
+                    )}
+                    {c.status === "batal" && n > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => aksi(c, "ulang")}
+                        className="rounded-lg border border-emerald-300 px-2.5 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-50"
+                      >
+                        Aktifkan lagi
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => koreksi(c)}
+                      className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-500 hover:border-brand/40 hover:text-brand"
+                    >
+                      Koreksi
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function slugify(name: string): string {  return (
     name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")

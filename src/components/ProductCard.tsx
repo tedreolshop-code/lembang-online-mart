@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCart } from "@/lib/cart";
 import { useFavorites, toggleFavorite } from "@/lib/store";
 import { formatRupiah, discountPercent } from "@/lib/format";
+import { bestTier } from "@/lib/pricing";
 import type { Product } from "@/lib/types";
 import ProductImage from "./ProductImage";
 import { HeartIcon, PlusIcon } from "./Icons";
@@ -16,6 +17,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const isFav = favorites.includes(product.id);
   const diskon = discountPercent(product.price, product.oldPrice);
   const habis = product.stock <= 0;
+  const grosir = bestTier(product.tiers); // harga termurah utk badge "Grosir ≥n"
 
   return (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200">
@@ -101,6 +103,11 @@ export default function ProductCard({ product }: { product: Product }) {
           >
             {formatRupiah(product.price)}
           </span>
+          {grosir && (
+            <span className="mt-0.5 block text-[10px] font-bold text-emerald-600">
+              Grosir ≥{grosir.minQty}: {formatRupiah(grosir.price)}
+            </span>
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { hitungOngkir } from "./config";
 import type { StoreSettings } from "./config";
 import { formatRupiah } from "./format";
+import { lineSubtotal, unitPrice } from "./pricing";
 import type { Order, PaymentMethod, Product } from "./types";
 
 export interface WaDraft {
@@ -10,11 +11,14 @@ export interface WaDraft {
   payment?: PaymentMethod;
   /** default reguler — opsi Xpress hanya bisa dipilih lewat form checkout */
   shipOption?: "reguler" | "xpress";
+  /** kode agen yang tercatat dari link referral (v6) */
+  agentCode?: string;
 }
 
 /** Susun teks pesanan siap kirim ke WhatsApp warung */
 export function buildOrderMessage(draft: WaDraft): string {
-  const subtotal = draft.lines.reduce((a, l) => a + l.product.price * l.qty, 0);
+  // harga grosir (v6): subtotal mengikuti harga efektif per jumlah
+  const subtotal = draft.lines.reduce((a, l) => a + lineSubtotal(l.product, l.qty), 0);
   const shipping = hitungOngkir(
     draft.settings,
     subtotal,
@@ -30,7 +34,7 @@ export function buildOrderMessage(draft: WaDraft): string {
   draft.lines.forEach((l, i) => {
     lines.push(
       `${i + 1}. ${l.product.name} (${l.product.unit}) x${l.qty} — ${formatRupiah(
-        l.product.price * l.qty,
+        unitPrice(l.product, l.qty) * l.qty,
       )}`,
     );
   });
@@ -54,6 +58,7 @@ export function buildOrderMessage(draft: WaDraft): string {
     if (draft.customer.note) lines.push(`Catatan: ${draft.customer.note}`);
     if (draft.payment) lines.push(`Pembayaran: ${draft.payment}`);
   }
+  if (draft.agentCode) lines.push("", `Kode agen: ${draft.agentCode}`);
   lines.push("", "Mohon dikonfirmasi ya, terima kasih 🙏");
   return lines.join("\n");
 }

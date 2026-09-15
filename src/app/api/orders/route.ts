@@ -1,6 +1,9 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { rowToOrder, rowToSettings } from "@/lib/rows";
 import { couponDiscount, rowToCoupon } from "@/lib/coupon";
+import { unitPrice } from "@/lib/pricing";
+import { tiersForProducts } from "@/lib/product-tiers";
+import { normalizeAgentCode } from "@/lib/agent";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { newOrderId } from "@/lib/format";
 import { sendOrderNotification } from "@/lib/notify";
@@ -53,7 +56,15 @@ export async function POST(req: Request) {
     .select("id, price, stock, name")
     .in("id", ids);
   if (perr) return Response.json({ error: perr.message }, { status: 500 });
-  const byId = new Map((prows ?? []).map((p) => [p.id, p]));
+  // harga grosir (v6): tempelkan tier ke tiap produk agar server memakai
+  // harga efektif yang SAMA dengan create_order
+  const tierMap = await tiersForProducts(
+    db(),
+    (prows ?? []).map((p) => p.id),
+  );
+  const byId = new Map(
+    (prows ?? []).map((p) => [p.id, { ...p, tiers: tierMap.get(p.id) }]),
+  );
   for (const i of items) {
     const p = byId.get(i.productId);
     if (!p) return Response.json({ error: "Produk tidak ditemukan." }, { status: 400 });
@@ -65,8 +76,13 @@ export async function POST(req: Request) {
     }
   }
   const subtotal = items.reduce(
-    (a: number, i: { productId: string; qty: number }) =>
-      a + (byId.get(i.productId)?.price ?? 0) * i.qty,
+    (a: number, i: { productId: string; qty: number }) => {
+      const p = byId.get(i.productId);
+      if (!p) return a;
+      // harga grosir (v6) ikut dihitung di server — sama aturannya dengan
+      // create_order; tanpa harga client sama sekali
+      return a + unitPrice(p, i.qty) * i.qty;
+    },
     0,
   );
   const xpressOngkir = Number.isFinite(sRow?.xpress_ongkir)
@@ -110,6 +126,10 @@ export async function POST(req: Request) {
     couponCode = wantedCoupon;
   }
 
+  // kode agen (v6) — pembersihan & validitas diputus oleh create_order di DB;
+  // API hanya meneruskan apa adanya (kode tak dikenal = tanpa atribusi)
+  const agentCode = normalizeAgentCode(body.agentCode);
+
   // kode pesanan unik dengan percobaan ulang bila bentrok
   let lastError = "";
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -137,6 +157,7 @@ export async function POST(req: Request) {
       p_discount: discount,
       p_coupon_code: couponCode,
       p_ship_option: shipOption,
+      p_agent_code: agentCode || null,
     });
     if (error && /find the function|does not exist/i.test(error.message)) {
       if (couponCode || shipOption === "xpress") {
@@ -144,6 +165,15 @@ export async function POST(req: Request) {
           {
             error:
               "Database belum dimigrasi — minta pemilik menjalankan sql/alter-v4.sql di Supabase SQL Editor.",
+          },
+          { status: 503 },
+        );
+      }
+      if (agentCode) {
+        return Response.json(
+          {
+            error:
+              "Database belum dimigrasi — kode agen butuh sql/alter-v6.sql dijalankan pemilik di Supabase SQL Editor.",
           },
           { status: 503 },
         );

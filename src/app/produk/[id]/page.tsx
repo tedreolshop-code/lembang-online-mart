@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useCart } from "@/lib/cart";
 import { useFavorites, useProduct, useProducts, toggleFavorite } from "@/lib/store";
 import { formatRupiah, discountPercent } from "@/lib/format";
+import { unitPrice } from "@/lib/pricing";
 import { categoryBySlug } from "@/data/seed";
 import { useSettings } from "@/lib/store";
 import ProductCard from "@/components/ProductCard";
@@ -50,6 +51,10 @@ export default function ProdukDetailPage() {
   const diskon = discountPercent(product.price, product.oldPrice);
   const isFav = favorites.includes(product.id);
   const habis = product.stock <= 0;
+  // harga grosir (v6): harga satuan efektif untuk jumlah terpilih + tier berikutnya
+  const tiers = (product.tiers ?? []).filter((t) => t.price < product.price);
+  const harga = unitPrice(product, qty);
+  const lagi = tiers.find((t) => t.minQty > qty);
   const terkait = products
     .filter((p) => p.category === product.category && p.id !== product.id)
     .slice(0, 4);
@@ -114,14 +119,41 @@ export default function ProdukDetailPage() {
                 habis ? "text-slate-400" : "text-brand"
               }`}
             >
-              {formatRupiah(product.price)}
+              {formatRupiah(harga)}
             </span>
+            {harga < product.price && (
+              <span className="pb-1 text-sm font-semibold text-emerald-600">
+                harga grosir
+              </span>
+            )}
             {product.oldPrice && (
               <span className="pb-1 text-sm text-slate-400 line-through">
                 {formatRupiah(product.oldPrice)}
               </span>
             )}
           </div>
+
+          {tiers.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+              {tiers.map((t) => (
+                <span
+                  key={t.minQty}
+                  className={`rounded-md px-1.5 py-0.5 font-semibold ${
+                    t.minQty <= qty
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  Beli {t.minQty}+ · {formatRupiah(t.price)}
+                </span>
+              ))}
+              {lagi && !habis && (
+                <span className="text-slate-400">
+                  +{lagi.minQty - qty} lagi → {formatRupiah(lagi.price)}
+                </span>
+              )}
+            </div>
+          )}
 
           <p className="mt-1 text-xs font-semibold">
             {habis ? (

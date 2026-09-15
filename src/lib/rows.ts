@@ -138,6 +138,8 @@ export interface OrderRow {
   coupon_code?: string | null;
   shipping: number;
   total: number;
+  agent_code?: string | null;
+  agent_commission?: number | null;
   order_items?: ItemRow[] | null;
 }
 
@@ -179,5 +181,8 @@ export function rowToOrder(r: OrderRow): Order {
     coupon: r.coupon_code ?? undefined,
     shipping: r.shipping,
     total: r.total,
+    agentCode: r.agent_code ?? undefined,
+    agentCommission:
+      r.agent_commission == null ? undefined : Number(r.agent_commission),
   };
 }

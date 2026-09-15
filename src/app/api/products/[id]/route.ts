@@ -1,4 +1,5 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
+import { replaceProductTiers } from "@/lib/product-tiers";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -46,6 +47,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (error) return Response.json({ error: error.message }, { status: 500 });
   if (!data || data.length === 0) {
     return Response.json({ error: "Produk tidak ditemukan." }, { status: 404 });
+  }
+
+  // tier grosir (v6): field tiers hadir = ganti seluruh daftar.
+  // Tier yang >= harga baru otomatis dibuang oleh normalizeTiers.
+  if (body.tiers !== undefined) {
+    try {
+      await replaceProductTiers(db(), id, body.tiers, Number(data[0].price));
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Gagal menyimpan harga grosir." },
+        { status: 500 },
+      );
+    }
   }
   return Response.json({ ok: true });
 }

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCart, useCartLines } from "@/lib/cart";
-import { checkCoupon, createOrder, useSettings } from "@/lib/store";
+import { checkCoupon, createOrder, useAgentRef, useSettings } from "@/lib/store";
 import { hitungOngkir, type ShipOption } from "@/lib/config";
 import { formatRupiah } from "@/lib/format";
+import { lineSubtotal, unitPrice } from "@/lib/pricing";
 import type { PaymentMethod } from "@/lib/types";
 import ProductImage from "@/components/ProductImage";
 import { CheckIcon, TruckIcon } from "@/components/Icons";
@@ -26,6 +27,13 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // kode agen (v6): terisi otomatis bila pengujung datang dari link
+  // referral — ?ref= ditangkap komponen RefCapture di layout & disimpan,
+  // di sini tinggal dibaca (plus masih bisa diketik manual)
+  const agentRef = useAgentRef();
+  const [agentTyped, setAgentTyped] = useState<string | null>(null);
+  const agentInput = agentTyped ?? agentRef ?? "";
+
   // voucher — ternikat pada subtotal saat dipasang; ganti isi keranjang
   // = voucher otomatis lepas (dihitung saat render, tanpa efek)
   const [voucherInput, setVoucherInput] = useState("");
@@ -33,7 +41,11 @@ export default function CheckoutPage() {
   const [voucherMsg, setVoucherMsg] = useState("");
   const [checkingVoucher, setCheckingVoucher] = useState(false);
 
-  const subtotal = lines.reduce((a, l) => a + l.product.price * l.qty, 0);
+  // harga grosir (v6): subtotal memakai harga efektif per jumlah
+  const subtotal = useMemo(
+    () => lines.reduce((a, l) => a + lineSubtotal(l.product, l.qty), 0),
+    [lines],
+  );
   const ongkir = hitungOngkir(settings, subtotal, shipOption);
   const voucherActive = applied !== null && applied.at === subtotal;
   const discount = voucherActive ? Math.min(applied?.discount ?? 0, subtotal) : 0;
@@ -101,6 +113,7 @@ export default function CheckoutPage() {
         items: lines.map((l) => ({ productId: l.product.id, qty: l.qty })),
         shipOption,
         couponCode: voucherActive ? applied?.code : undefined,
+        agentCode: agentInput.trim() || undefined,
       });
       clearCart();
       router.push(`/pesanan?sukses=${order.id}`);
@@ -173,6 +186,22 @@ export default function CheckoutPage() {
             />
           </Field>
 
+          <Field label="Kode Agen (opsional)">
+            <input
+              value={agentInput}
+              onChange={(e) =>
+                setAgentTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+              }
+              placeholder="cth: AGABCD12 — bila kamu membeli lewat tautan agen"
+              className="input font-mono uppercase"
+              maxLength={12}
+            />
+            <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
+              Terisi otomatis bila kamu datang dari tautan referral agen.
+              Komisi dicatat untuk agen yang kodenya valid &amp; aktif.
+            </span>
+          </Field>
+
           <Field label="Layanan Antar *">
             <div className="grid gap-2 sm:grid-cols-2">
               <ShipOptionCard
@@ -222,7 +251,9 @@ export default function CheckoutPage() {
         <div className="h-fit rounded-xl bg-white p-4 shadow-sm lg:sticky lg:top-32">
           <h2 className="font-extrabold text-slate-800">Pesananmu</h2>
           <ul className="mt-3 space-y-2 text-sm">
-            {lines.map(({ product, qty }) => (
+            {lines.map(({ product, qty }) => {
+              const harga = unitPrice(product, qty);
+              return (
               <li key={product.id} className="flex items-center gap-2">
                 <span className="block h-8 w-8 shrink-0 overflow-hidden rounded-md">
                   <ProductImage
@@ -234,12 +265,18 @@ export default function CheckoutPage() {
                 <span className="flex-1 leading-tight text-slate-600">
                   {product.name}
                   <span className="text-slate-400"> ×{qty}</span>
+                  {harga < product.price && (
+                    <span className="ml-1 text-[10px] font-bold text-emerald-600">
+                      grosir
+                    </span>
+                  )}
                 </span>
                 <span className="font-semibold text-slate-700">
-                  {formatRupiah(product.price * qty)}
+                  {formatRupiah(harga * qty)}
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           {/* voucher */}

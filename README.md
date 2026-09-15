@@ -23,10 +23,10 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 | Detail produk | `/produk/[id]` | Harga, diskon, stok, jumlah, beli |
 | Pencarian | `/cari?q=...` | Cari produk + filter kategori |
 | Keranjang | `/keranjang` | Atur jumlah, ringkasan, tombol pesan |
-| Checkout | `/checkout` | Form alamat + layanan antar (Reguler/Xpress) + voucher + COD/transfer |
+| Checkout | `/checkout` | Form alamat + layanan antar (Reguler/Xpress) + voucher + kode agen + COD/transfer |
 | Riwayat | `/pesanan` | Daftar pesanan + tombol konfirmasi WhatsApp |
 | Favorit | `/favorit` | Produk yang ditandai ♥ |
-| Admin | `/admin` | Kelola produk, pesanan, voucher & pengaturan (password: `admin123`) |
+| Admin | `/admin` | Kelola produk, pesanan, voucher, agen & pengaturan (password: `admin123`) |
 | Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan |
 
 ## Notifikasi Pesanan & Laporan
@@ -68,6 +68,41 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 > orders; tabel `coupons`; fungsi `create_order` versi baru). Tanpa
 > migrasi, website TETAP jalan penuh untuk pesanan reguler tanpa voucher —
 > checkout voucher/Xpress menampilkan pesan "database belum dimigrasi".
+
+## Harga Grosir & Program Agen (v6)
+
+- **Harga grosir bertingkat** (Admin → Produk → edit → "🏷️ Harga Grosir"):
+  tentukan tingkat jumlah & harga lebih murah, mis. beli ≥5 Rp19.200.
+  Berlaku untuk semua pembeli — badge muncul di kartu produk, halaman
+  produk, keranjang, dan checkout. Harga yang dipakai = tingkat dengan
+  jumlah minimum terbesar yang tercapai; dihitung ulang oleh server dan
+  fungsi database `create_order`, jadi tidak bisa dimanipulasi dari browser.
+- **Program agen** (Admin → 🤝 Agen): daftarkan agen (kode otomatis,
+  mis. `AGX7K2M`, bisa diganti manual), atur komisi global — persen atau
+  nominal tetap per pesanan, dasar sebelum/sesudah voucher, lantai & plafon,
+  masa berlaku tautan, masa tunggu cair — lalu aktifkan agen per orang.
+  Tiap agen boleh punya komisi khusus (%) yang menang atas aturan global.
+- **Tautan referral**: tombol 🔗 Tautan menyalin alamat `/?ref=KODE`.
+  Pengunjung yang datang dari tautan itu otomatis terisi kode agennya di
+  checkout (boleh juga diketik manual). Setiap pesanan dengan kode agen
+  mencatat `agent_code` + nilai komisi sebagai **snapshot** — mengubah
+  aturan komisi tidak mengubah pesanan lama.
+- **Pencairan** (Admin → 🤝 Agen): komisi berstatus *menunggu* sampai masa
+  tunggu (`hold_days`) sesudah pesanan **selesai** terlewat, lalu ditandai
+  **Bayar**; tersedia koreksi manual per baris. Nomor rekening agen
+  (`pay_target`) tidak pernah tampil ke pembeli — tabelnya terkunci RLS.
+- **Anti-akal-akalan**: pembelian sendiri (No. WA pembeli = WA agen), agen
+  belum aktif, atau program nonaktif → komisi 0 **beserta alasannya**
+  tercatat di ledger; kode tak dikenal → pesanan jalan tanpa atribusi.
+
+> ⚠️ **Sebelum deploy versi ini**: jalankan `sql/alter-v6.sql` sekali di
+> Supabase SQL Editor — menambah tabel `product_tiers`, `commission_settings`,
+> `agents`, `agent_commissions`; kolom `products.cost_price` dan
+> `orders.agent_code/agent_commission`; serta `create_order` versi baru
+> (pemanggil lama tidak perlu diubah). Tanpa migrasi, website TETAP jalan
+> penuh — harga grosir & kode agen hanya menampilkan pesan "database belum
+> dimigrasi" saat dipakai. Kolom `cost_price` (HPP) sengaja disiapkan untuk
+> laporan laba kotor nanti dan belum dipakai UI mana pun.
 
 ## Manajemen Stok
 
@@ -170,7 +205,8 @@ Cara mengaktifkan mode cloud:
    foto `product-images`).
    - Database yang sudah dibuat dengan skema versi lama: jalankan migrasi
      berurutan `sql/alter-v2.sql` → `sql/alter-v3.sql` → `sql/alter-v4.sql`
-     → `sql/alter-v5.sql`. Semua file itu aman diulang (idempotent).
+     → `sql/alter-v5.sql` → `sql/alter-v6.sql`. Semua file itu aman diulang
+     (idempotent).
 3. Dashboard → **Authentication → Users → Add user** → buat akun admin
    (email + password) untuk login halaman admin.
 4. Salin `.env.example` menjadi `.env`, isi 3 kredensial dari
@@ -199,9 +235,10 @@ src/
   app/          → halaman (App Router) + API routes (src/app/api/**)
   components/   → Header, BottomNav, ProductCard, BannerCarousel, …
   lib/          → store.ts (data layer mode ganda), db.ts (Supabase server),
-                  auth.ts (sesi admin), cart.tsx, config.ts, whatsapp.ts
+                  auth.ts (sesi admin), cart.tsx, config.ts, whatsapp.ts,
+                  pricing.ts (harga grosir), agent.ts (logika komisi agen)
   data/seed.ts  → kategori + produk awal
 sql/schema.sql  → skema database Supabase (tabel, RLS, transaksi stok)
-sql/alter-v*.sql → migrasi bertahap untuk database yang sudah jalan (v5 terakhir)
+sql/alter-v*.sql → migrasi bertahap untuk database yang sudah jalan (v6 terakhir)
 scripts/        → shots.mjs (screenshot), fetch-images.mjs (foto produk)
 ```

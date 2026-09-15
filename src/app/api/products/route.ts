@@ -1,5 +1,6 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { rowToProduct, productToRow } from "@/lib/rows";
+import { replaceProductTiers, tiersForProducts } from "@/lib/product-tiers";
 
 export async function GET() {
   if (!isCloud) return cloudRequired();
@@ -8,7 +9,21 @@ export async function GET() {
     .select("*")
     .order("position", { ascending: true });
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json((data ?? []).map(rowToProduct));
+
+  // harga grosir (v6). Bila migrasi belum dijalankan, katalog tetap dikirim
+  // tanpa tier supaya toko tidak ikut mati.
+  const byProduct = await tiersForProducts(
+    db(),
+    (data ?? []).map((r) => r.id as string),
+  );
+
+  return Response.json(
+    (data ?? []).map((r) => {
+      const p = rowToProduct(r);
+      const tiers = byProduct.get(p.id);
+      return tiers && tiers.length > 0 ? { ...p, tiers } : p;
+    }),
+  );
 }
 
 export async function POST(req: Request) {
@@ -44,5 +59,19 @@ export async function POST(req: Request) {
   };
   const { data, error } = await db().from("products").insert(row).select();
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json(rowToProduct(data![0]));
+  const created = rowToProduct(data![0]);
+
+  // tier grosir (v6) ikut tersimpan bila form mengirim daftar tier
+  if (Array.isArray(body.tiers) && body.tiers.length > 0) {
+    try {
+      const saved = await replaceProductTiers(db(), id, body.tiers, created.price);
+      if (saved.length > 0) created.tiers = saved;
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : "Gagal menyimpan harga grosir." },
+        { status: 500 },
+      );
+    }
+  }
+  return Response.json(created);
 }
