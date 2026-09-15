@@ -1,6 +1,7 @@
 "use client";
 
 import { useSettings } from "@/lib/store";
+import { mixWhite, shade } from "@/lib/theme";
 
 /** Terapkan warna tema langsung ke <html> (pratinjau langsung di
     Admin → Tampilan sebelum disimpan). */
@@ -59,33 +60,3 @@ export default function ThemeStyle() {
   );
 }
 
-/* ── util warna sederhana (tanpa dependensi) ──────────────────── */
-
-function parse(hex: string): [number, number, number] {
-  return [
-    parseInt(hex.slice(1, 3), 16),
-    parseInt(hex.slice(3, 5), 16),
-    parseInt(hex.slice(5, 7), 16),
-  ];
-}
-
-function toHex(r: number, g: number, b: number): string {
-  const c = (v: number) =>
-    Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
-  return `#${c(r)}${c(g)}${c(b)}`;
-}
-
-/** factor < 0 → lebih gelap, > 0 → lebih terang */
-function shade(hex: string, factor: number): string {
-  const [r, g, b] = parse(hex);
-  if (factor >= 0) {
-    return toHex(r + (255 - r) * factor, g + (255 - g) * factor, b + (255 - b) * factor);
-  }
-  const k = 1 + factor;
-  return toHex(r * k, g * k, b * k);
-}
-
-function mixWhite(hex: string, ratio: number): string {
-  const [r, g, b] = parse(hex);
-  return toHex(r + (255 - r) * ratio, g + (255 - g) * ratio, b + (255 - b) * ratio);
-}
