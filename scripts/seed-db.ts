@@ -81,9 +81,8 @@ async function main() {
     hours: DEFAULT_SETTINGS.hours,
     ongkir: DEFAULT_SETTINGS.ongkir,
     free_ongkir_min: DEFAULT_SETTINGS.freeOngkirMin,
-    notify_provider: DEFAULT_SETTINGS.notifyProvider,
-    notify_token: "",
-    notify_target: "",
+    // kredensial notifikasi TIDAK di sini: provider+token+target ada di
+    // tabel notify_secrets (diisi dari Admin → Pengaturan).
   });
   if (e3) throw new Error("pengaturan: " + e3.message);
   console.log("✓ pengaturan awal terisi");

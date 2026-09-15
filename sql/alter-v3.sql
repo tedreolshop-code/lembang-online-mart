@@ -31,5 +31,17 @@ alter table notify_secrets add column if not exists notify_provider
 -- RLS + tanpa policy → hanya service key (API Next.js) yang dapat akses.
 alter table notify_secrets enable row level security;
 
--- kosongkan salinan lama di settings (bila pernah terisi)
-update settings set notify_token = '', notify_target = '' where id = 1;
+-- kosongkan salinan lama di settings (bila pernah terisi & kolomnya masih ada).
+-- Dijaga dengan do-block supaya file ini tetap aman diulang setelah
+-- sql/alter-v5.sql membuang kolom notify_* dari settings.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = current_schema()
+       and table_name   = 'settings'
+       and column_name  = 'notify_token'
+  ) then
+    execute 'update settings set notify_token = '''', notify_target = '''' where id = 1';
+  end if;
+end $$;

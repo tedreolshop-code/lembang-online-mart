@@ -35,7 +35,9 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
   dari form checkout dikirim otomatis ke pemilik via **WhatsApp (Fonnte)** 
   atau **Telegram Bot** — lengkap dengan kode pesanan, nama, alamat, dan
   total. Ada tombol "Kirim Pesan Tes". Aktif penuh di mode database; di mode
-  lokal demo hanya tampil konfigurasinya.
+  lokal demo hanya tampil konfigurasinya. Kredensial (token & tujuan) maupun
+  pilihan penyedia disimpan di tabel `notify_secrets` yang dikunci RLS —
+  tabel `settings` bisa dibaca publik sehingga tidak boleh menyimpan rahasia.
 - **📊 Laporan** (Admin → Laporan): omzet, jumlah transaksi, barang terjual,
   dan produk paling laris — per hari ini / 7 hari / 30 hari / semua.
   Pesanan dibatalkan tidak ikut dihitung.
@@ -166,6 +168,9 @@ Cara mengaktifkan mode cloud:
 2. Dashboard → **SQL Editor** → tempel & jalankan seluruh `sql/schema.sql`
    (membuat tabel, fungsi transaksi `create_order`, keamanan RLS, dan bucket
    foto `product-images`).
+   - Database yang sudah dibuat dengan skema versi lama: jalankan migrasi
+     berurutan `sql/alter-v2.sql` → `sql/alter-v3.sql` → `sql/alter-v4.sql`
+     → `sql/alter-v5.sql`. Semua file itu aman diulang (idempotent).
 3. Dashboard → **Authentication → Users → Add user** → buat akun admin
    (email + password) untuk login halaman admin.
 4. Salin `.env.example` menjadi `.env`, isi 3 kredensial dari
@@ -173,6 +178,13 @@ Cara mengaktifkan mode cloud:
 5. Dashboard → **Storage → product-images** (sudah dibuat skema) untuk foto.
 6. `npm run build && npm run start` — lalu masuk `/admin`: jika database
    masih kosong, muncul tombol **"Muat Data Awal ke Database"**.
+
+> 🔐 **Migrasi v5 (`sql/alter-v5.sql`)** — membuang kolom notifikasi lama di
+> tabel `settings` (`notify_provider`, `notify_token`, `notify_target`) yang
+> sudah tidak dibaca kode mana pun; pilihan penyedia dipindahkan lebih dulu
+> ke `notify_secrets` (yang juga dipastikan RLS-nya aktif) sehingga tidak ada
+> data yang hilang. Setelah migrasi, token/target cukup diisi sekali lagi
+> dari Admin → Pengaturan → Metode Notifikasi.
 
 Detail teknis: semua akses DB lewat API Next.js (`src/app/api/**`) memakai
 service key di server — kredensial tidak pernah sampai browser. Pesanan
@@ -190,5 +202,6 @@ src/
                   auth.ts (sesi admin), cart.tsx, config.ts, whatsapp.ts
   data/seed.ts  → kategori + produk awal
 sql/schema.sql  → skema database Supabase (tabel, RLS, transaksi stok)
+sql/alter-v*.sql → migrasi bertahap untuk database yang sudah jalan (v5 terakhir)
 scripts/        → shots.mjs (screenshot), fetch-images.mjs (foto produk)
 ```
