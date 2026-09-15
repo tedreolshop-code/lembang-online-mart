@@ -20,27 +20,30 @@ export default function HomePage() {
     <div className="space-y-10 sm:space-y-12">
       <BannerCarousel />
 
-      {/* kategori: kartu besar berikon, kartu pertama aktif (navy) */}
+      {/* kategori: kartu besar berikon di layar besar; di mobile satu baris
+          kompak 4 kolom (ikon kecil + nama 11px) biar tidak memakan layar */}
       <section>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+        <div className="grid grid-cols-4 gap-2 sm:gap-4">
           {CATEGORIES.slice(0, 4).map((c, idx) => (
             <Link
               key={c.slug}
               href={`/kategori/${c.slug}`}
-              className={`group flex flex-col items-center gap-3 rounded-2xl px-4 py-7 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              className={`group flex flex-col items-center gap-1.5 rounded-xl px-1 py-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-7 ${
                 idx === 0
                   ? "bg-navy text-white"
                   : "border border-slate-100 bg-white text-slate-800 hover:border-navy/20"
               }`}
             >
               <span
-                className={`flex h-12 w-12 items-center justify-center ${
+                className={`flex h-8 w-8 items-center justify-center sm:h-12 sm:w-12 ${
                   idx === 0 ? "text-brand" : "text-navy"
                 }`}
               >
-                <CategoryGlyph slug={c.slug} className="h-10 w-10" />
+                <CategoryGlyph slug={c.slug} className="h-7 w-7 sm:h-10 sm:w-10" />
               </span>
-              <span className="text-sm font-bold sm:text-base">{c.name}</span>
+              <span className="text-[11px] font-bold leading-tight sm:text-sm">
+                {c.name}
+              </span>
             </Link>
           ))}
         </div>
