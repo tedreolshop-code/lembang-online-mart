@@ -1,135 +1,17 @@
 -- ============================================================
--- LEMBANG ONLINE MART — skema database (PostgreSQL / Supabase)
--- Cara pakai: buka Supabase Dashboard → SQL Editor → tempel &
--- jalankan seluruh file ini sekali.
+-- MIGRASI v6 — harga grosir (semua pembeli) + program agen & komisi
+-- Jalankan SEKALI di Supabase Dashboard → SQL Editor. Aman diulang.
+-- Kode lama tetap jalan: kolom baru punya nilai default dan create_order
+-- versi baru memakai parameter default (p_agent_code) sehingga pemanggil
+-- lama tidak perlu diubah.
 -- ============================================================
 
-create extension if not exists "pgcrypto";
+-- ── 1. harga modal (HPP) — disiapkan walau belum ada datanya ────────
+-- 0 = pemilik belum mengisi; dipakai nanti untuk laporan laba kotor.
+alter table products add column if not exists cost_price int not null default 0;
 
--- ── tabel ────────────────────────────────────────────────────
-create table if not exists categories (
-  slug text primary key,
-  name text not null,
-  emoji text not null default '🛒',
-  tint  text not null default '#f1f5f9',
-  sort  int  not null default 0
-);
-
-create table if not exists products (
-  id            text primary key,               -- slug, mis. "indomie-goreng-pcs"
-  name          text not null,
-  category_slug text references categories(slug),
-  price         int  not null check (price >= 0),
-  old_price     int,
-  cost_price    int  not null default 0,        -- harga modal/HPP (v6); 0 = belum diisi
-  unit          text not null default '1 pcs',
-  emoji         text not null default '🛒',
-  image_url     text,                           -- URL foto (opsional)
-  stock         int  not null default 0 check (stock >= 0),
-  is_promo      boolean not null default false,
-  is_bestseller boolean not null default false,
-  is_new        boolean not null default false,
-  description   text,
-  position      int not null default 0,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
-create index if not exists products_category_idx on products (category_slug);
-
-create table if not exists orders (
-  id             text primary key,               -- "LMB-XXXXXXXX" (8 karakter acak)
-  created_at     timestamptz not null default now(),
-  channel        text not null check (channel in ('whatsapp','form')),
-  status         text not null default 'menunggu'
-                 check (status in ('menunggu','diproses','selesai','dibatalkan')),
-  stock_applied  boolean not null default false,
-  customer_name  text not null,
-  customer_phone text not null,
-  customer_address text not null,
-  note           text,
-  payment        text not null check (payment in ('COD','Transfer Bank')),
-  ship_option    text not null default 'reguler'
-                 check (ship_option in ('reguler','xpress')),
-  subtotal       int not null default 0,
-  discount       int not null default 0,
-  coupon_code    text,
-  shipping       int  not null default 0,
-  total          int  not null default 0,
-  -- program agen (v6): kode agen tercatat + snapshot nilai komisinya
-  agent_code     text,
-  agent_commission int not null default 0
-);
-
-create table if not exists order_items (
-  id         bigint generated always as identity primary key,
-  order_id   text not null references orders(id) on delete cascade,
-  product_id text references products(id),
-  name       text not null,                     -- snapshot saat pesanan
-  price      int  not null,
-  qty        int  not null check (qty > 0),
-  unit       text not null,
-  emoji      text not null default '🛒'
-);
-create index if not exists order_items_order_idx on order_items (order_id);
-
-create table if not exists settings (
-  id             int primary key default 1 check (id = 1),
-  name           text not null,
-  tagline        text not null,
-  whatsapp       text not null,
-  address        text not null,
-  hours          text not null,
-  ongkir         int not null default 5000,
-  free_ongkir_min int not null default 50000,
-  -- opsi layanan antar & keterangan ongkir (v4)
-  xpress_ongkir  int  not null default 15000,
-  xpress_label   text not null default 'Xpress / Instan (hari yang sama)',
-  ongkir_note    text not null default '',
-  -- catatan: data notifikasi (provider/token/target) TIDAK di tabel ini —
-  -- semuanya di tabel notify_secrets yang terkunci RLS (lihat di bawah).
-  -- tampilan (Admin → Tampilan): warna tema, logo, banner promo
-  color_primary   text not null default '#f97316',
-  color_dark      text not null default '#b91c1c',
-  logo_url        text not null default '',
-  banners         jsonb not null default '[]'::jsonb
-);
-
--- kredensial notifikasi (RAHASIA) dipisah agar tidak terbaca publik —
--- tabel ini tidak punya policy baca: hanya service key (API) yang bisa.
--- Berisi pilihan penyedia SEKALIGUS token & target, supaya pilihan provider
--- tidak perlu ikut di tabel settings yang terbaca publik.
-create table if not exists notify_secrets (
-  id              int primary key default 1 check (id = 1),
-  notify_provider text not null default 'off',
-  notify_token    text not null default '',
-  notify_target   text not null default ''
-);
-
-create table if not exists stock_movements (
-  id         bigint generated always as identity primary key,
-  product_id text not null references products(id),
-  delta      int not null,
-  reason     text not null check (reason in ('order','receive','adjust','set','cancel')),
-  order_id   text references orders(id),
-  created_at timestamptz not null default now()
-);
-
-create table if not exists coupons (
-  code         text primary key,
-  label        text not null default '',
-  kind         text not null default 'percent' check (kind in ('percent','fixed')),
-  value        int  not null check (value > 0),
-  min_subtotal int  not null default 0,
-  max_uses     int,
-  used_count   int  not null default 0,
-  active       boolean not null default true,
-  expires_at   date,
-  created_at   timestamptz not null default now()
-);
-
--- ── harga grosir (v6) ─────────────────────────────────────────────
--- Satu produk boleh punya beberapa tingkat jumlah. Harga yang dipakai =
--- tier dengan min_qty terbesar yang <= jumlah dibeli (lihat create_order).
+-- ── 2. harga grosir: satu produk boleh punya beberapa tingkat jumlah ─
+-- Harga yang dipakai = tier dengan min_qty terbesar yang <= jumlah dibeli.
 -- Kosong = grosir tidak aktif untuk produk itu (harga normal berlaku).
 create table if not exists product_tiers (
   id         bigint generated always as identity primary key,
@@ -140,7 +22,7 @@ create table if not exists product_tiers (
 );
 create index if not exists product_tiers_product_idx on product_tiers (product_id);
 
--- ── aturan komisi agen (v6, baris tunggal diatur pemilik) ─────────
+-- ── 3. aturan komisi agen (baris tunggal, diatur pemilik) ────────────
 create table if not exists commission_settings (
   id               int primary key default 1 check (id = 1),
   aktif            boolean not null default true,
@@ -157,7 +39,7 @@ create table if not exists commission_settings (
 );
 insert into commission_settings (id) values (1) on conflict (id) do nothing;
 
--- ── agen penjual (v6) ───────────────────────────────────────────────
+-- ── 4. agen ──────────────────────────────────────────────────────────
 -- pay_target (no. rekening / e-wallet) = data pribadi → tabel dikunci RLS.
 create table if not exists agents (
   code               text primary key,
@@ -176,7 +58,7 @@ create table if not exists agents (
   updated_at         timestamptz not null default now()
 );
 
--- ── ledger komisi (v6): SNAPSHOT saat pesanan dibuat ────────────────
+-- ── 5. ledger komisi: SNAPSHOT saat pesanan dibuat ───────────────────
 -- Sengaja menyimpan angka hasil (basis_amount, percent_used, amount) supaya
 -- mengubah aturan komisi TIDAK mengubah komisi pesanan yang sudah terjadi.
 -- "siap dibayar" dihitung dari ready_at (diisi saat pesanan selesai +
@@ -199,9 +81,23 @@ create table if not exists agent_commissions (
 create index if not exists agent_commissions_agent_idx
   on agent_commissions (agent_code, status);
 
--- ── fungsi transaksi: buat pesanan + kurangi stok atomik ─────
--- Mengembalikan total pesanan. Melempar error bila stok kurang
--- (diterjemahkan API menjadi HTTP 409).
+-- ── 6. pesanan mencatat agen & komisi yang tercatat ──────────────────
+alter table orders add column if not exists agent_code text;
+alter table orders add column if not exists agent_commission int not null default 0;
+
+-- ── 7. RLS: tanpa policy → hanya service key (API Next.js) ───────────
+alter table product_tiers       enable row level security;
+alter table commission_settings enable row level security;
+alter table agents              enable row level security;
+alter table agent_commissions   enable row level security;
+
+-- ── 8. create_order v6: harga grosir + catat agen & komisi ───────────
+-- Versi lama (9 argumen) dibuang supaya pemanggil yang tidak mengirim
+-- p_agent_code tetap memakai fungsi ini (kalau keduanya ada, PostgreSQL
+-- memilih versi lama dan komisi tidak akan tercatat).
+drop function if exists create_order(text, text, jsonb, text, jsonb, int);
+drop function if exists create_order(text, text, jsonb, text, jsonb, int, int, text, text);
+
 create or replace function create_order(
   p_id       text,
   p_channel  text,
@@ -359,46 +255,9 @@ begin
   return v_total;
 end; $$;
 
--- ── keamanan (RLS) ───────────────────────────────────────────
--- Browser tidak pernah mengakses DB langsung: semua lewat API Next.js
--- yang memakai service key di server. RLS dipasang sebagai lapis kedua.
-alter table categories      enable row level security;
-alter table products        enable row level security;
-alter table orders          enable row level security;
-alter table order_items     enable row level security;
-alter table settings        enable row level security;
-alter table stock_movements enable row level security;
-alter table coupons         enable row level security;
--- WAJIB: tanpa RLS aktif, tabel rahasia ini terbaca siapa pun yang punya
--- anon key (Supabase memberi grant anon untuk tabel baru di schema public).
-alter table notify_secrets  enable row level security;
--- v6: grosir/agen — tanpa policy → hanya service key (API).
--- product_tiers dibaca publik MELALUI API /api/products, bukan langsung.
-alter table product_tiers       enable row level security;
-alter table commission_settings enable row level security;
-alter table agents              enable row level security;
-alter table agent_commissions   enable row level security;
-
--- publik boleh membaca katalog & pengaturan
-drop policy if exists "publik baca kategori" on categories;
-create policy "publik baca kategori" on categories
-  for select using (true);
-drop policy if exists "publik baca produk" on products;
-create policy "publik baca produk" on products
-  for select using (true);
-drop policy if exists "publik baca pengaturan" on settings;
-create policy "publik baca pengaturan" on settings
-  for select using (true);
-
--- orders/items/movements & semua penulisan: hanya service key (API).
--- Sengaja TIDAK ada policy untuk anon → tertolak otomatis.
-
--- ── bucket foto produk (Storage) ─────────────────────────────
-insert into storage.buckets (id, name, public)
-values ('product-images', 'product-images', true)
-on conflict (id) do nothing;
-
-drop policy if exists "publik baca foto produk" on storage.objects;
-create policy "publik baca foto produk" on storage.objects
-  for select using (bucket_id = 'product-images');
--- upload hanya lewat API (service key) → tidak ada policy upload anon.
+-- Catatan untuk API (Langkah 2):
+-- * p_agent_code diisi dari kode agen yang diketik pembeli atau tersimpan
+--   dari link referral (?ref=KODE); validitas & atribusi diputus di sini.
+-- * saat pesanan diubah jadi 'selesai', API mengisi agent_commissions.ready_at
+--   = now() + hold_days → komisi "siap dibayar" = ready_at sudah lewat.
+-- * saat pesanan 'dibatalkan', API mengubah baris komisi terkait jadi 'batal'.
