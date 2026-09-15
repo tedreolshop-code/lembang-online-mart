@@ -81,11 +81,8 @@ create table if not exists settings (
   xpress_ongkir  int  not null default 15000,
   xpress_label   text not null default 'Xpress / Instan (hari yang sama)',
   ongkir_note    text not null default '',
-  -- notifikasi pesanan masuk ke pemilik (Fonnte WA / Telegram)
-  notify_provider text not null default 'off'
-                  check (notify_provider in ('off','fonnte','telegram')),
-  notify_token    text not null default '',
-  notify_target   text not null default '',
+  -- catatan: data notifikasi (provider/token/target) TIDAK di tabel ini —
+  -- semuanya di tabel notify_secrets yang terkunci RLS (lihat di bawah).
   -- tampilan (Admin → Tampilan): warna tema, logo, banner promo
   color_primary   text not null default '#f97316',
   color_dark      text not null default '#b91c1c',
@@ -95,10 +92,13 @@ create table if not exists settings (
 
 -- kredensial notifikasi (RAHASIA) dipisah agar tidak terbaca publik —
 -- tabel ini tidak punya policy baca: hanya service key (API) yang bisa.
+-- Berisi pilihan penyedia SEKALIGUS token & target, supaya pilihan provider
+-- tidak perlu ikut di tabel settings yang terbaca publik.
 create table if not exists notify_secrets (
-  id            int primary key default 1 check (id = 1),
-  notify_token  text not null default '',
-  notify_target text not null default ''
+  id              int primary key default 1 check (id = 1),
+  notify_provider text not null default 'off',
+  notify_token    text not null default '',
+  notify_target   text not null default ''
 );
 
 create table if not exists stock_movements (
@@ -210,6 +210,9 @@ alter table order_items     enable row level security;
 alter table settings        enable row level security;
 alter table stock_movements enable row level security;
 alter table coupons         enable row level security;
+-- WAJIB: tanpa RLS aktif, tabel rahasia ini terbaca siapa pun yang punya
+-- anon key (Supabase memberi grant anon untuk tabel baru di schema public).
+alter table notify_secrets  enable row level security;
 
 -- publik boleh membaca katalog & pengaturan
 drop policy if exists "publik baca kategori" on categories;
