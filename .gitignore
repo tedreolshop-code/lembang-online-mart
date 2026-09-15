@@ -37,6 +37,7 @@ yarn-error.log*
 
 # artefak kerja lokal
 /shots
+/shots-new
 /server.log
 /.zcode/
 
