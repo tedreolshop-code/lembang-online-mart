@@ -14,7 +14,16 @@ export function formatDateTime(ts: number): string {
   }).format(new Date(ts));
 }
 
+/** Huruf/angka tanpa yang mudah tertukar (I O 0 1) → 32 simbol, dan
+    256 ÷ 32 = 8 pas sehingga modulo di bawah tidak bias. */
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** Kode pesanan: `LMB-` + 8 karakter acak kriptografis (~1,1 triliun
+    kombinasi). Harus tidak bisa ditebak: halaman /pesanan membaca data
+    pelanggan lewat kode ini tanpa login, jadi kode = kuncinya. */
 export function newOrderId(): string {
-  const n = Math.floor(1000 + Math.random() * 9000);
-  return `LMB-${n}`;
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  let out = "";
+  for (const b of bytes) out += CODE_CHARS[b % CODE_CHARS.length];
+  return `LMB-${out}`;
 }

@@ -2,6 +2,7 @@ import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db
 import { rowToOrder, rowToSettings } from "@/lib/rows";
 import { couponDiscount, rowToCoupon } from "@/lib/coupon";
 import { DEFAULT_SETTINGS } from "@/lib/config";
+import { newOrderId } from "@/lib/format";
 import { sendOrderNotification } from "@/lib/notify";
 import { withSecrets } from "@/lib/notify-secrets";
 import { after } from "next/server";
@@ -112,7 +113,7 @@ export async function POST(req: Request) {
   // kode pesanan unik dengan percobaan ulang bila bentrok
   let lastError = "";
   for (let attempt = 0; attempt < 5; attempt++) {
-    const id = `LMB-${Math.floor(1000 + Math.random() * 9000)}`;
+    const id = newOrderId();
     const baseArgs = {
       p_id: id,
       p_channel: body.channel === "whatsapp" ? "whatsapp" : "form",

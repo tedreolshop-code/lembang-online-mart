@@ -36,7 +36,7 @@ create table if not exists products (
 create index if not exists products_category_idx on products (category_slug);
 
 create table if not exists orders (
-  id             text primary key,               -- "LMB-xxxx"
+  id             text primary key,               -- "LMB-XXXXXXXX" (8 karakter acak)
   created_at     timestamptz not null default now(),
   channel        text not null check (channel in ('whatsapp','form')),
   status         text not null default 'menunggu'
