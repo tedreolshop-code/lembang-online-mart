@@ -17,10 +17,16 @@ alter table settings add column if not exists banners
 -- Tabel settings terbaca publik (RLS select for all) sehingga token
 -- Fonnte/Telegram bisa bocor lewat anon key yang memang publik.
 create table if not exists notify_secrets (
-  id            int primary key default 1 check (id = 1),
-  notify_token  text not null default '',
-  notify_target text not null default ''
+  id              int primary key default 1 check (id = 1),
+  notify_provider text not null default 'off',
+  notify_token    text not null default '',
+  notify_target   text not null default ''
 );
+
+-- database yang tabelnya dibuat oleh versi file ini sebelumnya belum punya
+-- kolom provider, padahal src/lib/notify-secrets.ts membacanya → tambahkan.
+alter table notify_secrets add column if not exists notify_provider
+  text not null default 'off';
 
 -- RLS + tanpa policy → hanya service key (API Next.js) yang dapat akses.
 alter table notify_secrets enable row level security;
