@@ -3,25 +3,27 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
-import { useCart } from "@/lib/cart";
-import { SearchIcon, CartIcon } from "./Icons";
+import { SearchIcon, UserIcon } from "./Icons";
 import Logo from "./Logo";
 
+/* Menu tengah hanya tampil di layar lebar (md:flex). "Keranjang" tetap di
+   sini karena bar bawah layar — satu-satunya tempat tombol keranjang
+   sekarang — tersembunyi mulai md. */
 const MENU = [
   { href: "/", label: "Beranda" },
   { href: "/kategori", label: "Kategori" },
-  /* "Keranjang" tidak lagi jadi menu teks — tombol keranjang oranye sudah
-     ada tepat di sebelahnya, jadi tempatnya dipakai menu Akun pelanggan */
-  { href: "/akun", label: "Akun" },
+  { href: "/keranjang", label: "Keranjang" },
   { href: "/pesanan", label: "Pesanan" },
 ];
 
 /** Header navy ala mockup: logo kiri, menu tengah (desktop: Beranda,
-    Kategori, Akun, Pesanan), tombol cari + keranjang oranye kanan. */
+    Kategori, Keranjang, Pesanan), lalu cari + tombol **Akun** di kanan.
+    Tombol keranjang yang dulu ada di kanan sudah diganti tombol Akun;
+    keranjang kini dijangkau dari tab "Keranjang" di bar bawah layar
+    (mobile) atau menu tengah (desktop). */
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { count, ready } = useCart();
   const [q, setQ] = useState("");
 
   if (pathname.startsWith("/admin")) return null;
@@ -83,23 +85,21 @@ export default function Header() {
           <Link
             href="/cari"
             aria-label="Cari produk"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/10 lg:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10 lg:hidden"
           >
             <SearchIcon className="h-5 w-5" />
           </Link>
 
+          {/* tombol Akun — menggantikan tombol keranjang oranye yang dulu
+              di posisi ini; jumlah item keranjang tampil di tab bar bawah */}
           <Link
-            href="/keranjang"
-            aria-label="Keranjang belanja"
-            className="relative flex items-center gap-2 rounded-full bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:brightness-110"
+            href="/akun"
+            aria-label="Akun saya"
+            aria-current={pathname.startsWith("/akun") ? "page" : undefined}
+            className="flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-brand text-sm font-bold text-white shadow transition hover:brightness-110 sm:w-auto sm:px-4"
           >
-            <CartIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Keranjang</span>
-            {ready && count > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-navy">
-                {count > 99 ? "99+" : count}
-              </span>
-            )}
+            <UserIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Akun</span>
           </Link>
         </div>
       </div>

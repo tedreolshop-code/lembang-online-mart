@@ -9,16 +9,14 @@ import {
   InfoIcon,
   ReceiptIcon,
   SearchIcon,
-  UserIcon,
 } from "./Icons";
 
-/* enam tab: Akun ditambahkan tanpa mengorbankan tab lain — label halaman
-   info dipendekkan jadi "Tentang" supaya keenamnya tetap satu baris */
+/* Akun tidak lagi di sini — tombolnya ada di header, menggantikan tombol
+   keranjang di header; keranjang tetap dijangkau dari tab di bawah ini */
 const ITEMS = [
   { href: "/", label: "Beranda", icon: HomeIcon },
   { href: "/cari", label: "Cari", icon: SearchIcon },
-  { href: "/tentang", label: "Tentang", icon: InfoIcon },
-  { href: "/akun", label: "Akun", icon: UserIcon },
+  { href: "/tentang", label: "Tentang Kami", icon: InfoIcon },
   { href: "/keranjang", label: "Keranjang", icon: CartIcon },
   { href: "/pesanan", label: "Pesanan", icon: ReceiptIcon },
 ];
@@ -26,7 +24,7 @@ const ITEMS = [
 /** Menu bawah khusus mobile (header menu tampil mulai md): tetap terlihat
     saat scroll, ikon + label, badge jumlah item di Keranjang. Kategori
     dicapai dari seksi kategori di Beranda (kartu/chip + tombol Lihat
-    Semua Produk) dan halaman Tentang Kami. */
+    Semua Produk) dan halaman Tentang Kami; Akun dari tombol di header. */
 export default function BottomNav() {
   const pathname = usePathname();
   const { count, ready } = useCart();
@@ -57,7 +55,7 @@ export default function BottomNav() {
                 <span className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-brand" />
               )}
               {label === "Keranjang" && ready && count > 0 && (
-                <span className="absolute right-[30%] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">
+                <span className="absolute right-[22%] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[9px] font-bold text-white">
                   {count > 9 ? "9+" : count}
                 </span>
               )}

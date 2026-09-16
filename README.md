@@ -26,7 +26,7 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 | Checkout | `/checkout` | Form alamat + layanan antar (Reguler/Xpress) + voucher + kode agen + COD/transfer |
 | Riwayat | `/pesanan` | Daftar pesanan + tombol konfirmasi WhatsApp |
 | Favorit | `/favorit` | Produk yang ditandai ♥ |
-| Akun | `/akun` | Menu pelanggan (tab Akun): data pengiriman yang diingat, pintasan pesanan, favorit, keranjang, info & kontak warung |
+| Akun | `/akun` | Menu pelanggan: tombol **Akun** di header (menggantikan tombol keranjang — keranjang kini di tab bar bawah & menu tengah) berisi data pengiriman yang diingat, pintasan pesanan, favorit, keranjang, info & kontak warung |
 | Admin | `/admin` | Kelola produk, pesanan, voucher, agen & pengaturan (password: `admin123`) |
 | Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan (tab "Tentang"; juga ditautkan dari halaman Akun) |
 
