@@ -2146,12 +2146,30 @@ function TampilanTab() {
     }
   };
 
-  const uploadLogo = async (file: File) => {
+  /** Unggah gambar (logo / foto banner) langsung dari perangkat.
+      Cloud → Supabase Storage lewat /api/upload; lokal → data URL
+      (tersimpan di localStorage settings). `pasang` menerima URL hasil. */
+  const uploadGambar = async (
+    file: File,
+    pasang: (url: string) => void,
+  ): Promise<void> => {
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Ukuran gambar maksimal 2MB.");
+      return;
+    }
+    if (!/^image\//.test(file.type)) {
+      alert("File harus berupa gambar (PNG/JPG/WebP).");
+      return;
+    }
     if (!cloudMode) {
-      // mode lokal: pakai data URL (tersimpan di localStorage)
-      const reader = new FileReader();
-      reader.onload = () => setLogoUrl(String(reader.result));
-      reader.readAsDataURL(file);
+      const url = await new Promise<string>((ok, no) => {
+        const reader = new FileReader();
+        reader.onload = () => ok(String(reader.result));
+        reader.onerror = () => no(new Error("baca gagal"));
+        reader.readAsDataURL(file);
+      }).catch(() => "");
+      if (url) pasang(url);
+      else alert("Gagal membaca file.");
       return;
     }
     setUploading(true);
@@ -2164,8 +2182,10 @@ function TampilanTab() {
         body: fd,
       });
       const j = (await res.json()) as { url?: string; error?: string };
-      if (j.url) setLogoUrl(j.url);
+      if (j.url) pasang(j.url);
       else alert(j.error ?? "Upload gagal.");
+    } catch {
+      alert("Upload gagal — periksa koneksi lalu coba lagi.");
     } finally {
       setUploading(false);
     }
@@ -2276,26 +2296,19 @@ function TampilanTab() {
             />
           </span>
           <div className="flex-1 space-y-2">
-            {cloudMode && (
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void uploadLogo(file);
-                }}
-                className="block w-full text-xs text-slate-500 file:mr-2 file:rounded-lg file:border-0 file:bg-navy file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white"
-              />
-            )}
-            <label className="block">
-              <span className="form-label">atau tempel URL logo</span>
-              <input
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="https://…/logo.png (kosongkan = logo bawaan)"
-                className="input text-xs"
-              />
-            </label>
+            {/* upload langsung dari perangkat di semua mode
+                (cloud → Storage, lokal → tersimpan di browser) */}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = ""; // izinkan memilih file yang sama lagi
+                if (file) void uploadGambar(file, setLogoUrl);
+              }}
+              className="block w-full text-xs text-slate-500 file:mr-2 file:rounded-lg file:border-0 file:bg-navy file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white disabled:opacity-50"
+            />
             {logoUrl && (
               <button
                 type="button"
@@ -2309,10 +2322,10 @@ function TampilanTab() {
         </div>
         <p className="text-[11px] text-slate-400">
           {uploading
-            ? "Mengunggah ke Storage…"
+            ? "Mengunggah…"
             : cloudMode
-              ? "Pilih file PNG/JPG dari perangkat, atau tempel URL gambar."
-              : "Mode lokal: logo tersimpan di browser ini (data URL)."}
+              ? "Pilih file PNG/JPG dari perangkat (maks 2MB) — langsung terunggah ke Storage."
+              : "Mode lokal: gambar tersimpan di browser ini."}
         </p>
       </div>
 
@@ -2424,15 +2437,47 @@ function TampilanTab() {
                     )}
                   </span>
                 </label>
-                <label className="block sm:col-span-2">
+                <div className="sm:col-span-2">
                   <span className="form-label">Foto Hero (sisi kanan)</span>
-                  <input
-                    value={b.image}
-                    onChange={(e) => setBanner(i, { image: e.target.value })}
-                    placeholder="https://…/gudang.jpg (kosongkan = foto bawaan)"
-                    className="input text-xs"
-                  />
-                </label>
+                  <div className="flex items-center gap-3">
+                    {/* pratinjau kecil — kosong = foto bawaan toko */}
+                    <span className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={b.image.trim() || "/hero-toko.jpg"}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file)
+                          void uploadGambar(file, (url) =>
+                            setBanner(i, { image: url }),
+                          );
+                      }}
+                      className="block min-w-0 flex-1 text-xs text-slate-500 file:mr-2 file:rounded-lg file:border-0 file:bg-navy file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white disabled:opacity-50"
+                    />
+                    {b.image && (
+                      <button
+                        type="button"
+                        onClick={() => setBanner(i, { image: "" })}
+                        className="shrink-0 text-xs font-bold text-brand hover:underline"
+                      >
+                        Hapus
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Unggah langsung dari perangkat (PNG/JPG maks 2MB) — kosong =
+                    foto bawaan.
+                  </p>
+                </div>
               </div>
               {/* pratinjau banner */}
               <div

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSettings } from "@/lib/store";
 import { mixWhite, shade, themeVarsCss } from "@/lib/theme";
 import { DEFAULT_SETTINGS } from "@/lib/config";
@@ -55,6 +56,15 @@ export default function ThemeStyle({ initial }: { initial?: ThemeInitial }) {
   // pakai nilai dari server; setelahnya nilai store yang menang (selalu
   // paling baru — admin mungkin menyimpan tema berbeda saat halaman terbuka)
   const view = initial && s === DEFAULT_SETTINGS ? initial : s;
+
+  // mode lokal: skrip prapaint di layout menyuntik <style id="los-theme-init-css">
+  // sebagai "jembatan" agar paint pertama sudah memakai tema localStorage.
+  // Setelah React merender style di atas (nilai sama — sama-sama dibaca dari
+  // localStorage), jembatan dilepas supaya perubahan tema selanjutnya
+  // (mis. sinkron antar-tab) tetap bisa mengupdate variabel.
+  useEffect(() => {
+    document.getElementById("los-theme-init-css")?.remove();
+  }, []);
 
   return (
     <style

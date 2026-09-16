@@ -13,8 +13,13 @@ import { getThemeColors } from "@/lib/server-theme";
 
 /* Mode lokal: tema tersimpan ada di localStorage yang tidak bisa dibaca
    server. Skrip inline di awal <body> ini dieksekusi parser sebelum konten
-   ter-paint, menerapkan variabel warna lebih dulu supaya paint pertama
-   sudah memakai tema pemilik — bukan fallback lalu berubah. */
+   ter-paint dan menyuntik <style> "los-theme-init-css" agar paint pertama
+   sudah memakai tema pemilik — bukan fallback lalu berubah.
+
+   Pilih style sheet (bukan atribut style di <html>) supaya tidak bentrok
+   dengan hidrasi React atas elemen <html>; selektor `:root:root` membuatnya
+   menang atas aturan `:root` ThemeStyle, dan ThemeStyle menghapus elemen ini
+   setelah mount (saat itu nilainya sudah membaca localStorage yang sama). */
 const LOCAL_THEME_INIT = `(function(){try{
 var s=JSON.parse(localStorage.getItem("los_settings_v1")||"null")||{};
 var re=/^#[0-9a-fA-F]{6}$/;
@@ -24,13 +29,13 @@ function c(v){return Math.max(0,Math.min(255,Math.round(v))).toString(16).padSta
 function sh(h,f){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);
 if(f>=0)return"#"+c(r+(255-r)*f)+c(g+(255-g)*f)+c(b+(255-b)*f);
 var k=1+f;return"#"+c(r*k)+c(g*k)+c(b*k)}
-var st=document.documentElement.style;
-st.setProperty("--color-brand",p);
-st.setProperty("--color-brand-dark",sh(p,-0.18));
-st.setProperty("--color-brand-soft",sh(p,0.88));
-st.setProperty("--color-navy",d);
-st.setProperty("--color-navy-dark",sh(d,-0.22));
-st.setProperty("--color-navy-soft",sh(d,0.92));
+var css=":root:root{--color-brand:"+p+";--color-brand-dark:"+sh(p,-0.18)+
+";--color-brand-soft:"+sh(p,0.88)+";--color-navy:"+d+
+";--color-navy-dark:"+sh(d,-0.22)+";--color-navy-soft:"+sh(d,0.92)+";}";
+var el=document.createElement("style");
+el.id="los-theme-init-css";
+el.textContent=css;
+(document.head||document.documentElement).appendChild(el);
 }catch(e){}})();`;
 
 const jakarta = Plus_Jakarta_Sans({
