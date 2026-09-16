@@ -154,7 +154,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   ).length;
 
   return (
-    <div>
+    <div className="pb-24">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-extrabold text-slate-800 sm:text-2xl">
           Dashboard Admin 🧑‍💼
@@ -179,47 +179,6 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <TabButton active={tab === "produk"} onClick={() => setTab("produk")}>
-          🛒 Produk
-        </TabButton>
-        <TabButton active={tab === "stok"} onClick={() => setTab("stok")}>
-          📦 Stok
-        </TabButton>
-        <TabButton active={tab === "pesanan"} onClick={() => setTab("pesanan")}>
-          🧾 Pesanan
-          {pending > 0 && (
-            <span className="ml-1.5 rounded-full bg-brand px-1.5 text-[10px] font-bold text-white">
-              {pending}
-            </span>
-          )}
-        </TabButton>
-        <TabButton
-          active={tab === "laporan"}
-          onClick={() => setTab("laporan")}
-        >
-          📊 Laporan
-        </TabButton>
-        <TabButton active={tab === "voucher"} onClick={() => setTab("voucher")}>
-          🎟️ Voucher
-        </TabButton>
-        <TabButton active={tab === "agen"} onClick={() => setTab("agen")}>
-          🤝 Agen
-        </TabButton>
-        <TabButton
-          active={tab === "tampilan"}
-          onClick={() => setTab("tampilan")}
-        >
-          🎨 Tampilan
-        </TabButton>
-        <TabButton
-          active={tab === "pengaturan"}
-          onClick={() => setTab("pengaturan")}
-        >
-          ⚙️ Pengaturan
-        </TabButton>
-      </div>
-
       {tab === "produk" ? (
         <ProdukTab />
       ) : tab === "stok" ? (
@@ -237,6 +196,61 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       ) : (
         <PengaturanTab />
       )}
+
+      {/* menu tab di bawah layar (fixed) — mengikuti pola BottomNav toko;
+          dapat digeser horizontal bila sempit, isi konten diberi pb agar
+          tidak tertutup */}
+      <nav
+        aria-label="Menu admin"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] backdrop-blur"
+      >
+        <div className="no-scrollbar mx-auto flex max-w-3xl gap-2 overflow-x-auto">
+          <TabButton active={tab === "produk"} onClick={() => setTab("produk")}>
+            🛒 Produk
+          </TabButton>
+          <TabButton active={tab === "stok"} onClick={() => setTab("stok")}>
+            📦 Stok
+          </TabButton>
+          <TabButton
+            active={tab === "pesanan"}
+            onClick={() => setTab("pesanan")}
+          >
+            🧾 Pesanan
+            {pending > 0 && (
+              <span className="ml-1.5 rounded-full bg-brand px-1.5 text-[10px] font-bold text-white">
+                {pending}
+              </span>
+            )}
+          </TabButton>
+          <TabButton
+            active={tab === "laporan"}
+            onClick={() => setTab("laporan")}
+          >
+            📊 Laporan
+          </TabButton>
+          <TabButton
+            active={tab === "voucher"}
+            onClick={() => setTab("voucher")}
+          >
+            🎟️ Voucher
+          </TabButton>
+          <TabButton active={tab === "agen"} onClick={() => setTab("agen")}>
+            🤝 Agen
+          </TabButton>
+          <TabButton
+            active={tab === "tampilan"}
+            onClick={() => setTab("tampilan")}
+          >
+            🎨 Tampilan
+          </TabButton>
+          <TabButton
+            active={tab === "pengaturan"}
+            onClick={() => setTab("pengaturan")}
+          >
+            ⚙️ Pengaturan
+          </TabButton>
+        </div>
+      </nav>
     </div>
   );
 }
@@ -254,10 +268,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+      className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${
         active
           ? "bg-brand text-white shadow"
-          : "bg-white text-slate-600 hover:bg-slate-50"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
       }`}
     >
       {children}
