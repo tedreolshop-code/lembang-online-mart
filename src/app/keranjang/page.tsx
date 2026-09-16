@@ -162,6 +162,14 @@ export default function KeranjangPage() {
             </p>
           )}
 
+          {/* form checkout */}
+          <Link
+            href="/checkout"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-navy px-4 py-3 text-sm font-bold text-white shadow transition hover:bg-navy-dark active:scale-[0.98]"
+          >
+            Checkout Form (COD / Transfer)
+          </Link>
+
           {/* pesan via WhatsApp */}
           <a
             href={waLink(
@@ -176,19 +184,11 @@ export default function KeranjangPage() {
             )}
             target="_blank"
             rel="noreferrer"
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25d366] px-4 py-3 text-sm font-bold text-white shadow transition hover:brightness-95 active:scale-[0.98]"
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25d366] px-4 py-3 text-sm font-bold text-white shadow transition hover:brightness-95 active:scale-[0.98]"
           >
             <ChatIcon className="h-4.5 w-4.5" />
             Pesan via WhatsApp
           </a>
-
-          {/* atau form checkout */}
-          <Link
-            href="/checkout"
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-navy px-4 py-3 text-sm font-bold text-white shadow transition hover:bg-navy-dark active:scale-[0.98]"
-          >
-            Checkout Form (COD / Transfer)
-          </Link>
 
           <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">
             Pesanan dikonfirmasi lewat WhatsApp ke nomor warung sebelum diantar.
