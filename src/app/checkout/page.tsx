@@ -39,7 +39,9 @@ export default function CheckoutPage() {
   const pakaiTersimpan =
     nameTyped === null && phoneTyped === null && addressTyped === null;
   const [note, setNote] = useState("");
-  const [payment, setPayment] = useState<PaymentMethod>("COD");
+  // metode pembayaran dipilih pembeli SETELAH pesanan dibuat (halaman sukses);
+  // "COD" hanya placeholder yang akan diganti pemilihan sungguhan di /pesanan
+  const [payment] = useState<PaymentMethod>("COD");
   const [shipOption, setShipOption] = useState<ShipOption>("reguler");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -273,22 +275,8 @@ export default function CheckoutPage() {
             )}
           </Field>
 
-          <Field label="Metode Pembayaran *">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <PaymentOption
-                active={payment === "COD"}
-                onClick={() => setPayment("COD")}
-                title="COD (Bayar di Tempat)"
-                desc="Bayar tunai saat barang tiba"
-              />
-              <PaymentOption
-                active={payment === "Transfer Bank"}
-                onClick={() => setPayment("Transfer Bank")}
-                title="Transfer Bank"
-                desc="BCA 1234567890 a.n. Lembang Store"
-              />
-            </div>
-          </Field>
+          {/* metode pembayaran TIDAK di sini — dipilih pembeli setelah
+              pesanan dibuat (di halaman sukses /pesanan?sukses=…) */}
         </div>
 
         {/* ringkasan */}
@@ -475,33 +463,6 @@ function ShipOptionCard({
       }`}
     >
       <span className="block text-sm font-bold text-slate-800">🚚 {title}</span>
-      <span className="text-xs text-slate-500">{desc}</span>
-    </button>
-  );
-}
-
-function PaymentOption({
-  active,
-  title,
-  desc,
-  onClick,
-}: {
-  active: boolean;
-  title: string;
-  desc: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-xl border-2 p-3 text-left transition ${
-        active
-          ? "border-brand bg-brand-soft"
-          : "border-slate-200 hover:border-brand/40"
-      }`}
-    >
-      <span className="block text-sm font-bold text-slate-800">{title}</span>
       <span className="text-xs text-slate-500">{desc}</span>
     </button>
   );

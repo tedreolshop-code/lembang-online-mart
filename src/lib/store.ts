@@ -489,6 +489,30 @@ export async function cancelOrder(o: Order): Promise<void> {
   );
 }
 
+/** Pilih metode pembayaran pesanan form (dipanggil pembeli di halaman
+    sukses, setelah pesanan dibuat). Melempar Error bila gagal. */
+export async function setOrderPayment(
+  id: string,
+  payment: "COD" | "Transfer Bank",
+): Promise<void> {
+  if (cloudMode) {
+    // endpoint publik khusus (bukan PATCH admin): yang memilih pembeli
+    const updated = await api<Order>(`/api/orders/${id}/payment`, {
+      method: "PATCH",
+      body: JSON.stringify({ payment }),
+    });
+    cloudOrders = cloudOrders.map((x) => (x.id === id ? updated : x));
+    emit();
+    return;
+  }
+  writeJSON(
+    KEYS.orders,
+    readJSON<Order[]>(KEYS.orders, EMPTY_ORDERS).map((o) =>
+      o.id === id ? { ...o, payment } : o,
+    ),
+  );
+}
+
 export async function updateOrderStatus(
   id: string,
   status: Order["status"],

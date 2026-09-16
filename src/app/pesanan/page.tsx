@@ -3,12 +3,18 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useFavorites, useOrders, useProducts } from "@/lib/store";
+import {
+  setOrderPayment,
+  useFavorites,
+  useOrders,
+  useProducts,
+} from "@/lib/store";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { buildOrderRepeatMessage, waLink } from "@/lib/whatsapp";
 import { printOrderStruk } from "@/lib/printStruk";
 import { useSettings } from "@/lib/store";
 import type { OrderStatus } from "@/lib/types";
+import { useState } from "react";
 import ProductCard from "@/components/ProductCard";
 import { CheckIcon, ChatIcon } from "@/components/Icons";
 
@@ -55,13 +61,19 @@ function PesananContent() {
             Kode pesanan kamu:{" "}
             <b className="rounded bg-white px-2 py-0.5 font-mono">{suksesId}</b>
             <br />
-            Selanjutnya, konfirmasi pesanan ke WhatsApp warung agar segera
-            diantar.
+            Pilih dulu metode pembayaran di bawah, lalu konfirmasi pesanan
+            ke WhatsApp warung agar segera diantar.
           </p>
           {(() => {
             const order = orders.find((o) => o.id === suksesId);
             if (!order) return null;
             return (
+              <>
+              {/* pilih metode pembayaran — hanya untuk pesanan lewat form,
+                  sekali saja (setelah dipilih tidak bisa diganti di sini) */}
+              {order.channel === "form" && (
+                <PaymentChooser orderId={order.id} current={order.payment} />
+              )}
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 <a
                   href={waLink(buildOrderRepeatMessage(order, settings), settings.whatsapp)}
@@ -80,6 +92,7 @@ function PesananContent() {
                   🖨 Cetak Struk
                 </button>
               </div>
+              </>
             );
           })()}
         </div>
@@ -273,5 +286,134 @@ export default function PesananPage() {
     <Suspense>
       <PesananContent />
     </Suspense>
+  );
+}
+
+/** Penanda per-perangkat: pesanan ini sudah lewat kartu pemilihan pembayaran
+    (diperlukan karena memilih COD = nilai awal DB, tak terbedakan saat reload). */
+const PAYMENT_CHOSEN_KEY = "los_payment_chosen_v1";
+
+function bacaSudahPilihPembayaran(orderId: string): boolean {
+  try {
+    const ids = JSON.parse(
+      localStorage.getItem(PAYMENT_CHOSEN_KEY) ?? "[]",
+    ) as string[];
+    return ids.includes(orderId);
+  } catch {
+    return false;
+  }
+}
+
+function tandaiSudahPilihPembayaran(orderId: string): void {
+  try {
+    const ids = JSON.parse(
+      localStorage.getItem(PAYMENT_CHOSEN_KEY) ?? "[]",
+    ) as string[];
+    localStorage.setItem(
+      PAYMENT_CHOSEN_KEY,
+      JSON.stringify([orderId, ...ids.filter((x) => x !== orderId)]),
+    );
+  } catch {
+    /* penyimpanan penuh/blokir — pilihan tetap tersimpan di pesanan */
+  }
+}
+
+/** Pemilih metode pembayaran untuk pesanan form — muncul di banner sukses
+    SETELAH pesanan dibuat (alur baru: checkout form tanpa kartu COD/Transfer,
+    metode dipilih di sini sekali saja). Pending state + error inline. */
+function PaymentChooser({
+  orderId,
+  current,
+}: {
+  orderId: string;
+  current: "COD" | "Transfer Bank";
+}) {
+  const [pilih, setPilih] = useState<"COD" | "Transfer Bank" | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  // Transfer Bank terlihat langsung dari data pesanan; COD perlu penanda
+  // perangkat karena "COD" juga nilai awal sebelum dipilih
+  const [selesai, setSelesai] = useState(
+    () => current !== "COD" || bacaSudahPilihPembayaran(orderId),
+  );
+  const sudahPilih = selesai;
+
+  const simpan = async (metode: "COD" | "Transfer Bank") => {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await setOrderPayment(orderId, metode);
+      tandaiSudahPilihPembayaran(orderId);
+      setSelesai(true);
+      setPilih(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan pilihan.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (sudahPilih) {
+    return (
+      <p className="mt-3 inline-block rounded-full bg-white px-4 py-1.5 text-sm font-bold text-emerald-700 shadow-sm">
+        💳 Pembayaran: {current}
+      </p>
+    );
+  }
+
+  const metode = pilih ?? "COD";
+  return (
+    <div className="mt-3 rounded-xl bg-white p-4 text-left shadow-sm">
+      <p className="text-sm font-bold text-slate-800">💳 Metode Pembayaran</p>
+      <p className="mt-0.5 text-xs text-slate-500">
+        Pilih salah satu — pilihan tidak bisa diganti setelah ini.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setPilih("COD")}
+          className={`rounded-xl border-2 p-3 text-left transition ${
+            metode === "COD"
+              ? "border-brand bg-brand-soft"
+              : "border-slate-200 hover:border-brand/40"
+          }`}
+        >
+          <span className="block text-sm font-bold text-slate-800">
+            COD (Bayar di Tempat)
+          </span>
+          <span className="text-xs text-slate-500">
+            Bayar tunai saat barang tiba
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setPilih("Transfer Bank")}
+          className={`rounded-xl border-2 p-3 text-left transition ${
+            metode === "Transfer Bank"
+              ? "border-brand bg-brand-soft"
+              : "border-slate-200 hover:border-brand/40"
+          }`}
+        >
+          <span className="block text-sm font-bold text-slate-800">
+            Transfer Bank
+          </span>
+          <span className="text-xs text-slate-500">
+            BCA 1234567890 a.n. Lembang Store
+          </span>
+        </button>
+      </div>
+      {error && (
+        <p className="mt-2 text-xs font-semibold text-brand">{error}</p>
+      )}
+      <button
+        type="button"
+        onClick={() => simpan(metode)}
+        disabled={saving}
+        className="mt-3 w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+      >
+        {saving ? "Menyimpan…" : `Pakai ${metode}`}
+      </button>
+    </div>
   );
 }
