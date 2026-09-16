@@ -68,6 +68,24 @@ export function overAlpha(fg: [number, number, number], alpha: number, bg: strin
   );
 }
 
+/** hex #rrggbb valid, selain itu pakai fallback */
+export function safeHex(hex: string, fallback: string): string {
+  return /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : fallback;
+}
+
+/** CSS variables tema penuh — satu sumber kebenaran untuk ThemeStyle
+    (SSR & klien) dan skrip prapaint mode lokal di layout. Fallback disamakan
+    dengan DEFAULT_SETTINGS di lib/config.ts. */
+export function themeVarsCss(colorPrimary: string, colorDark: string): string {
+  const p = safeHex(colorPrimary, "#dc2626");
+  const d = safeHex(colorDark, "#991b1b");
+  return (
+    `:root{--color-brand:${p};--color-brand-dark:${shade(p, -0.18)};` +
+    `--color-brand-soft:${mixWhite(p, 0.88)};--color-navy:${d};` +
+    `--color-navy-dark:${shade(d, -0.22)};--color-navy-soft:${mixWhite(d, 0.92)};}`
+  );
+}
+
 /** tinta gelap navy — dipakai bila latar terang supaya tetap warna, bukan abu */
 export const INK_DARK = "#0f172a";
 

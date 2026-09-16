@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
-import { useSettings } from "@/lib/store";
 import { useCart } from "@/lib/cart";
 import { SearchIcon, CartIcon } from "./Icons";
 import Logo from "./Logo";
@@ -21,7 +20,6 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { count, ready } = useCart();
-  const settings = useSettings();
   const [q, setQ] = useState("");
 
   if (pathname.startsWith("/admin")) return null;
@@ -40,7 +38,9 @@ export default function Header() {
           <Logo className="h-9 w-9" />
           <span className="text-lg font-extrabold tracking-tight text-white sm:text-xl">
             Lembang{" "}
-            <span style={{ color: settings.colorPrimary }}>Online Mart</span>
+            {/* kelas (bukan inline style) → warna ikut CSS variables tema
+                yang sudah benar sejak paint pertama, tidak berubah setelah fetch */}
+            <span className="text-brand">Online Mart</span>
           </span>
         </Link>
 
@@ -89,8 +89,7 @@ export default function Header() {
           <Link
             href="/keranjang"
             aria-label="Keranjang belanja"
-            className="relative flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-white shadow transition hover:brightness-110"
-            style={{ backgroundColor: settings.colorPrimary }}
+            className="relative flex items-center gap-2 rounded-full bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:brightness-110"
           >
             <CartIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Keranjang</span>

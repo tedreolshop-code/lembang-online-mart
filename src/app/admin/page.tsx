@@ -2220,7 +2220,7 @@ function TampilanTab() {
               <input
                 value={primary}
                 onChange={(e) => setPrimary(e.target.value)}
-                placeholder="#f97316"
+                placeholder="#dc2626"
                 className="input font-mono text-xs"
               />
             </span>
@@ -2237,7 +2237,7 @@ function TampilanTab() {
               <input
                 value={dark}
                 onChange={(e) => setDark(e.target.value)}
-                placeholder="#b91c1c"
+                placeholder="#991b1b"
                 className="input font-mono text-xs"
               />
             </span>

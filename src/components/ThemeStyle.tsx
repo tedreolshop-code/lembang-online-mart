@@ -1,13 +1,21 @@
 "use client";
 
 import { useSettings } from "@/lib/store";
-import { mixWhite, shade } from "@/lib/theme";
+import { mixWhite, shade, themeVarsCss } from "@/lib/theme";
+import { DEFAULT_SETTINGS } from "@/lib/config";
+
+/** Pratinjau warna dari server (mode cloud) — mencegah kedip tema saat
+    paint pertama sebelum /api/settings tiba di klien. */
+export interface ThemeInitial {
+  colorPrimary: string;
+  colorDark: string;
+}
 
 /** Terapkan warna tema langsung ke <html> (pratinjau langsung di
     Admin → Tampilan sebelum disimpan). */
 export function applyThemeVars(primary: string, dark: string): void {
-  const p = safe(primary, "#f97316");
-  const d = safe(dark, "#b91c1c");
+  const p = safe(primary, "#dc2626");
+  const d = safe(dark, "#991b1b");
   const r = document.documentElement.style;
   r.setProperty("--color-brand", p);
   r.setProperty("--color-brand-dark", shade(p, -0.18));
@@ -36,25 +44,23 @@ function safe(hex: string, fallback: string): string {
 
 /** Terpasang sekali di layout: menerjemahkan warna tema pilihan pemilik
     (Admin → Tampilan) ke CSS variables yang dipakai seluruh utilitas
-    Tailwind bg-brand / text-brand / bg-navy / text-navy dst. */
-export default function ThemeStyle() {
-  const s = useSettings();
-  const primary = safe(s.colorPrimary, "#f97316");
-  const dark = safe(s.colorDark, "#b91c1c");
+    Tailwind bg-brand / text-brand / bg-navy / text-navy dst.
 
-  // turunan warna agar gradasi/soft tetap terlihat harmonis
-  const primaryDark = shade(primary, -0.18);
-  const primarySoft = mixWhite(primary, 0.88);
-  const darkSoft = mixWhite(dark, 0.92);
+    `initial` dari root layout (mode cloud) memastikan render server — dan
+    paint pertama browser — sudah memakai warna tersimpan, bukan fallback,
+    sehingga tidak ada kedip warna sebelum hasil fetch klien tiba. */
+export default function ThemeStyle({ initial }: { initial?: ThemeInitial }) {
+  const s = useSettings();
+  // selama store belum menelan hasil fetch (objek masih DEFAULT_SETTINGS),
+  // pakai nilai dari server; setelahnya nilai store yang menang (selalu
+  // paling baru — admin mungkin menyimpan tema berbeda saat halaman terbuka)
+  const view = initial && s === DEFAULT_SETTINGS ? initial : s;
 
   return (
     <style
       // variabel warna global — nilai berasal dari pengaturan pemilik toko
       dangerouslySetInnerHTML={{
-        __html: `:root{--color-brand:${primary};--color-brand-dark:${primaryDark};--color-brand-soft:${primarySoft};--color-navy:${dark};--color-navy-dark:${shade(
-          dark,
-          -0.22,
-        )};--color-navy-soft:${darkSoft};}`,
+        __html: themeVarsCss(view.colorPrimary, view.colorDark),
       }}
     />
   );

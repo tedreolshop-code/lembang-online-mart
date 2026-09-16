@@ -32,11 +32,16 @@ export default function BannerCarousel() {
     color: "otomatis",
     image: "",
   };
-  const bg = banner.color === "otomatis" ? settings.colorDark : banner.color;
+  // "otomatis" → kelas bg-navy (mengikuti CSS variables tema yang sudah
+  // benar sejak paint pertama); warna khusus per-banner tetap inline
+  const customBg = banner.color === "otomatis" ? undefined : banner.color;
 
   return (
     <div className="full-bleed relative -mt-4 shadow-lg shadow-slate-300/40">
-      <div className="grid md:grid-cols-2" style={{ backgroundColor: bg }}>
+      <div
+        className={`grid md:grid-cols-2 ${customBg ? "" : "bg-navy"}`}
+        style={customBg ? { backgroundColor: customBg } : undefined}
+      >
         {/* panel teks */}
         <div className="order-2 flex flex-col justify-center px-5 py-8 sm:px-10 md:order-1 lg:px-16">
           <div key={i} className="animate-hero-fade max-w-xl">
@@ -50,8 +55,7 @@ export default function BannerCarousel() {
             )}
             <Link
               href={banner.href || "/kategori"}
-              className="mt-6 inline-block rounded-full px-7 py-3 text-sm font-bold text-white shadow-md transition hover:brightness-110 sm:text-base"
-              style={{ backgroundColor: settings.colorPrimary }}
+              className="mt-6 inline-block rounded-full bg-brand px-7 py-3 text-sm font-bold text-white shadow-md transition hover:brightness-110 sm:text-base"
             >
               {banner.cta}
             </Link>
@@ -88,7 +92,6 @@ export default function BannerCarousel() {
                   ? "w-8 bg-brand"
                   : "w-4 bg-white/80 hover:bg-white"
               }`}
-              style={j === i ? { backgroundColor: settings.colorPrimary } : undefined}
             />
           ))}
         </div>

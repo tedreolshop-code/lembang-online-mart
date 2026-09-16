@@ -1,13 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  /* Merah – Oranye LEMBANG ONLINE MART (sesuai permintaan klient) */
-  --color-brand: #f97316;
-  --color-brand-dark: #ea580c;
-  --color-brand-soft: #fff2e3;
-  --color-navy: #b91c1c;
-  --color-navy-dark: #7f1d1d;
-  --color-navy-soft: #fdecec;
+  /* Tema default MERAH — disamakan dengan DEFAULT_SETTINGS.colorPrimary/
+     colorDark + turunan shade()/mixWhite() agar paint sebelum ThemeStyle
+     mount warnanya identik (lihat lib/theme.ts) */
+  --color-brand: #dc2626;
+  --color-brand-dark: #b41f1f;
+  --color-brand-soft: #fbe5e5;
+  --color-navy: #991b1b;
+  --color-navy-dark: #771515;
+  --color-navy-soft: #f7eded;
   --color-cream: #fbf4f2;
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
