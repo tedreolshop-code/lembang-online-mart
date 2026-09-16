@@ -5,6 +5,7 @@ import "./globals.css";
 import { CartProvider } from "@/lib/cart";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
+import FloatingWa from "@/components/FloatingWa";
 import ThemeStyle from "@/components/ThemeStyle";
 import RefCapture from "@/components/RefCapture";
 import { DEFAULT_SETTINGS } from "@/lib/config";
@@ -90,6 +91,7 @@ export default async function RootLayout({
             {children}
           </main>
           <BottomNav />
+          <FloatingWa />
         </CartProvider>
       </body>
     </html>
