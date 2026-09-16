@@ -28,7 +28,7 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 | Favorit | `/favorit` | Produk yang ditandai ♥ |
 | Akun | `/akun` | Menu pelanggan (tab Akun): data pengiriman yang diingat, pintasan pesanan, favorit, keranjang, info & kontak warung |
 | Admin | `/admin` | Kelola produk, pesanan, voucher, agen & pengaturan (password: `admin123`) |
-| Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan (ditautkan dari halaman Akun) |
+| Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan (tab "Tentang"; juga ditautkan dari halaman Akun) |
 
 ## Notifikasi Pesanan & Laporan
 
