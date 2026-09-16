@@ -10,12 +10,14 @@ import Logo from "./Logo";
 const MENU = [
   { href: "/", label: "Beranda" },
   { href: "/kategori", label: "Kategori" },
-  { href: "/keranjang", label: "Keranjang" },
+  /* "Keranjang" tidak lagi jadi menu teks — tombol keranjang oranye sudah
+     ada tepat di sebelahnya, jadi tempatnya dipakai menu Akun pelanggan */
+  { href: "/akun", label: "Akun" },
   { href: "/pesanan", label: "Pesanan" },
 ];
 
-/** Header navy ala mockup: logo kiri, menu tengah (desktop),
-    tombol cari + keranjang oranye kanan. */
+/** Header navy ala mockup: logo kiri, menu tengah (desktop: Beranda,
+    Kategori, Akun, Pesanan), tombol cari + keranjang oranye kanan. */
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();

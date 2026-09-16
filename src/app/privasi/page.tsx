@@ -35,11 +35,16 @@ export default function PrivasiPage() {
           </section>
 
           <section>
-            <h2 className="font-bold text-slate-800">3. Keranjang &amp; favorit</h2>
+            <h2 className="font-bold text-slate-800">
+              3. Keranjang, favorit &amp; data pengiriman
+            </h2>
             <p className="mt-1">
-              Isi keranjang dan daftar favorit disimpan di perangkat Anda
-              sendiri (bukan di server kami), sehingga hanya Anda yang bisa
-              melihatnya.
+              Isi keranjang, daftar favorit, dan data pengiriman terakhir
+              (nama, nomor HP, alamat) disimpan di perangkat Anda sendiri
+              (bukan di server kami), sehingga hanya Anda yang bisa
+              melihatnya. Data pengiriman itu dipakai untuk mengisi otomatis
+              form checkout berikutnya, dan bisa Anda lihat, ubah, atau hapus
+              sendiri kapan saja di halaman <b>Akun</b>.
             </p>
           </section>
 

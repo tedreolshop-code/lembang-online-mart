@@ -6,15 +6,17 @@ import { useCart } from "@/lib/cart";
 import {
   CartIcon,
   HomeIcon,
-  InfoIcon,
   ReceiptIcon,
   SearchIcon,
+  UserIcon,
 } from "./Icons";
 
 const ITEMS = [
   { href: "/", label: "Beranda", icon: HomeIcon },
   { href: "/cari", label: "Cari", icon: SearchIcon },
-  { href: "/tentang", label: "Tentang Kami", icon: InfoIcon },
+  /* dulu "Tentang Kami" — tempatnya dipakai menu Akun pelanggan;
+     halaman info (Tentang Kami/Cara Pesan/Privasi) ditautkan dari /akun */
+  { href: "/akun", label: "Akun", icon: UserIcon },
   { href: "/keranjang", label: "Keranjang", icon: CartIcon },
   { href: "/pesanan", label: "Pesanan", icon: ReceiptIcon },
 ];
@@ -22,7 +24,7 @@ const ITEMS = [
 /** Menu bawah khusus mobile (header menu tampil mulai md): tetap terlihat
     saat scroll, ikon + label, badge jumlah item di Keranjang. Kategori
     dicapai dari seksi kategori di Beranda (kartu/chip + tombol Lihat
-    Semua Produk) dan halaman Tentang Kami. */
+    Semua Produk) dan halaman Tentang Kami lewat tab Akun. */
 export default function BottomNav() {
   const pathname = usePathname();
   const { count, ready } = useCart();

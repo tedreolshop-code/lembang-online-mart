@@ -26,8 +26,9 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 | Checkout | `/checkout` | Form alamat + layanan antar (Reguler/Xpress) + voucher + kode agen + COD/transfer |
 | Riwayat | `/pesanan` | Daftar pesanan + tombol konfirmasi WhatsApp |
 | Favorit | `/favorit` | Produk yang ditandai ♥ |
+| Akun | `/akun` | Menu pelanggan (tab Akun): data pengiriman yang diingat, pintasan pesanan, favorit, keranjang, info & kontak warung |
 | Admin | `/admin` | Kelola produk, pesanan, voucher, agen & pengaturan (password: `admin123`) |
-| Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan |
+| Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan (ditautkan dari halaman Akun) |
 
 ## Notifikasi Pesanan & Laporan
 
@@ -103,6 +104,17 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 > penuh — harga grosir & kode agen hanya menampilkan pesan "database belum
 > dimigrasi" saat dipakai. Kolom `cost_price` (HPP) sengaja disiapkan untuk
 > laporan laba kotor nanti dan belum dipakai UI mana pun.
+
+## Data Pengiriman yang Diingat
+
+- Checkout mengingat **nama, nomor HP, dan alamat terakhir** di perangkat
+  pembeli (`localStorage` kunci `los_customer_v1`), lalu mengisinya otomatis
+  pada pesanan berikutnya — pembeli langganan cukup mengubah yang berubah.
+- Pembeli mengelola datanya sendiri di halaman **Akun** (`/akun`): kartu
+  **Data Pengiriman** bisa dilihat, diubah, dan dihapus ("Hapus data").
+- Sifatnya lokal per-perangkat, bukan akun server: tidak ada data yang
+  dikirim ke mana pun selain sebagai data pesanan, dan tidak ada migrasi
+  database yang diperlukan.
 
 ## Manajemen Stok
 

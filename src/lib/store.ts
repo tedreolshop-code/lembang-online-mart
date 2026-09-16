@@ -561,6 +561,52 @@ export function toggleFavorite(id: string) {
   );
 }
 
+/* ── identitas pembeli (selalu lokal — biar tidak usah ketik ulang) ──
+
+   Nama, No. HP, dan alamat disimpan di perangkat pembeli saja, bukan di
+   database: checkout berikutnya terisi otomatis dan pembeli bisa melihat,
+   mengubah, atau menghapusnya dari halaman Akun. */
+
+const CUSTOMER_KEY = "los_customer_v1";
+
+export interface CustomerProfile {
+  name: string;
+  phone: string;
+  address: string;
+  /** waktu terakhir diubah (ms) */
+  at: number;
+}
+
+/** Data pengiriman terakhir di perangkat ini (null bila belum pernah diisi). */
+export function useSavedCustomer(): CustomerProfile | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => readJSON<CustomerProfile | null>(CUSTOMER_KEY, null),
+    () => null,
+  );
+}
+
+/** Ingat data pengiriman pembeli — dipanggil checkout setelah pesanan
+    berhasil dibuat, dan dari halaman Akun. */
+export function saveCustomer(data: {
+  name: string;
+  phone: string;
+  address: string;
+}): void {
+  writeJSON<CustomerProfile>(CUSTOMER_KEY, {
+    name: data.name.trim(),
+    phone: data.phone.trim(),
+    address: data.address.trim(),
+    at: Date.now(),
+  });
+}
+
+/** Hapus data tersimpan (tombol "Hapus data" di halaman Akun). */
+export function forgetCustomer(): void {
+  window.localStorage.removeItem(CUSTOMER_KEY);
+  emit();
+}
+
 /* ── voucher (mode ganda; kelola dari Admin → Voucher) ────────── */
 
 const EMPTY_COUPONS: Coupon[] = [];

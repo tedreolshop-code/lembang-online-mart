@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useCart, useCartLines } from "@/lib/cart";
-import { checkCoupon, createOrder, useAgentRef, useSettings } from "@/lib/store";
+import {
+  checkCoupon,
+  createOrder,
+  saveCustomer,
+  useAgentRef,
+  useSavedCustomer,
+  useSettings,
+} from "@/lib/store";
 import { hitungOngkir, type ShipOption } from "@/lib/config";
 import { formatRupiah } from "@/lib/format";
 import { lineSubtotal, unitPrice } from "@/lib/pricing";
@@ -18,9 +25,19 @@ export default function CheckoutPage() {
   const lines = useCartLines();
   const settings = useSettings();
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  // data pengiriman yang diingat perangkat ini (localStorage) — pola
+  // "typed ?? tersimpan ?? kosong": field tetap bisa diketik ulang, tapi
+  // begitu ada data tersimpan form langsung terisi tanpa efek/useEffect
+  const saved = useSavedCustomer();
+  const [nameTyped, setNameTyped] = useState<string | null>(null);
+  const [phoneTyped, setPhoneTyped] = useState<string | null>(null);
+  const [addressTyped, setAddressTyped] = useState<string | null>(null);
+  const name = nameTyped ?? saved?.name ?? "";
+  const phone = phoneTyped ?? saved?.phone ?? "";
+  const address = addressTyped ?? saved?.address ?? "";
+  // ketiga field masih memakai data tersimpan (belum diketik sendiri)
+  const pakaiTersimpan =
+    nameTyped === null && phoneTyped === null && addressTyped === null;
   const [note, setNote] = useState("");
   const [payment, setPayment] = useState<PaymentMethod>("COD");
   const [shipOption, setShipOption] = useState<ShipOption>("reguler");
@@ -115,6 +132,8 @@ export default function CheckoutPage() {
         couponCode: voucherActive ? applied?.code : undefined,
         agentCode: agentInput.trim() || undefined,
       });
+      // pembeli berikutnya tidak usah mengetik ulang data yang sama
+      saveCustomer({ name, phone, address });
       clearCart();
       router.push(`/pesanan?sukses=${order.id}`);
     } catch (err) {
@@ -148,10 +167,35 @@ export default function CheckoutPage() {
             </p>
           )}
 
+          {saved && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              <span>
+                📦 Data pengiriman terakhir (<b>{saved.name}</b>){" "}
+                {pakaiTersimpan
+                  ? "terisi otomatis — ubah bila perlu."
+                  : "tersimpan di perangkat ini."}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  // "Kosongkan" ↔ "Pakai data tersimpan" (null = ikut data
+                  // localStorage yang sama dengan halaman Akun)
+                  const bersih = pakaiTersimpan;
+                  setNameTyped(bersih ? "" : null);
+                  setPhoneTyped(bersih ? "" : null);
+                  setAddressTyped(bersih ? "" : null);
+                }}
+                className="font-bold underline underline-offset-2"
+              >
+                {pakaiTersimpan ? "Kosongkan" : "Pakai data tersimpan"}
+              </button>
+            </div>
+          )}
+
           <Field label="Nama Lengkap *">
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setNameTyped(e.target.value)}
               placeholder="cth: Budi Santoso"
               className="input"
             />
@@ -160,7 +204,7 @@ export default function CheckoutPage() {
           <Field label="Nomor HP / WhatsApp *">
             <input
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhoneTyped(e.target.value)}
               placeholder="cth: 0812xxxxxxx"
               inputMode="tel"
               className="input"
@@ -170,7 +214,7 @@ export default function CheckoutPage() {
           <Field label="Alamat Lengkap *">
             <textarea
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => setAddressTyped(e.target.value)}
               placeholder="Nama jalan, RT/RW, desa/dusun, patokan…"
               rows={3}
               className="input resize-none"
