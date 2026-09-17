@@ -45,6 +45,7 @@ export async function GET(req: Request) {
       notifyProvider: s.provider,
       notifyToken: s.token,
       notifyTarget: s.target,
+      discordWebhook: s.discordWebhook,
     });
   }
   return Response.json({
@@ -114,11 +115,16 @@ export async function PUT(req: Request) {
     body.notifyTarget !== undefined
   ) {
     const sec = await writeSecrets(
-      body.notifyProvider === "fonnte" || body.notifyProvider === "telegram"
+      body.notifyProvider === "fonnte" ||
+        body.notifyProvider === "telegram" ||
+        body.notifyProvider === "discord"
         ? (body.notifyProvider as StoreSettings["notifyProvider"])
         : "off",
       body.notifyToken ? String(body.notifyToken) : "",
       body.notifyTarget ? String(body.notifyTarget) : "",
+      body.discordWebhook !== undefined
+        ? String(body.discordWebhook)
+        : undefined,
     );
     warning = sec.warning;
   }

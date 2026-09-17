@@ -117,6 +117,7 @@ export function rowToSettings(r: SettingsRow): StoreSettings {
     notifyProvider: "off",
     notifyToken: "",
     notifyTarget: "",
+    discordWebhook: "",
     colorPrimary: r.color_primary || DEFAULT_SETTINGS.colorPrimary,
     colorDark: r.color_dark || DEFAULT_SETTINGS.colorDark,
     logoUrl: r.logo_url ?? "",

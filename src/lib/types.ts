@@ -142,7 +142,17 @@ export interface Agent {
   commissionPercent: number | null;
   status: "pending" | "aktif" | "nonaktif";
   totalKlik: number;
+  /** email opsional untuk notifikasi agen (v8) */
+  email?: string;
   createdAt?: string;
+}
+
+/** Pelanggan — identitas utama No. WhatsApp (bukan email).
+    Tanpa OTP di fase awal; login cukup No. WA + nama. */
+export interface Customer {
+  phone: string;
+  name: string;
+  address: string;
 }
 
 export type CommissionStatus = "pending" | "dibayar" | "batal";

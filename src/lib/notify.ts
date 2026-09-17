@@ -27,6 +27,28 @@ async function sendText(
   text: string,
 ): Promise<{ sent: boolean; error?: string }> {
   if (settings.notifyProvider === "off") return { sent: false };
+  if (settings.notifyProvider === "discord") {
+    if (!settings.discordWebhook) {
+      return { sent: false, error: "Discord webhook URL belum diisi." };
+    }
+    try {
+      const res = await fetch(settings.discordWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text.slice(0, 2000) }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        return { sent: false, error: `Discord HTTP ${res.status}` };
+      }
+      return { sent: true };
+    } catch (err) {
+      return {
+        sent: false,
+        error: err instanceof Error ? err.message : "gagal kirim Discord",
+      };
+    }
+  }
   if (!settings.notifyToken || !settings.notifyTarget) {
     return { sent: false, error: "Notifikasi belum dikonfigurasi lengkap." };
   }
@@ -107,3 +129,24 @@ function buildMessage(s: StoreSettings, o: Order): string {
 
 export const TEST_MESSAGE =
   "✅ Tes notifikasi berhasil terhubung. Pesanan baru dari website akan diberitahukan ke chat ini.";
+
+/** Notifikasi pendaftaran agen baru — dikirim ke Telegram + Discord.
+    Best-effort: gagal kirim TIDAK menggagalkan pendaftaran. */
+export async function sendAgentRegisterNotification(
+  nama: string,
+  wa: string,
+  code: string,
+): Promise<void> {
+  const { sendAdminAlert } = await import("./notify-secrets");
+  const text = [
+    `🤝 *PENDAFTARAN AGEN BARU*`,
+    ``,
+    `Nama: ${nama}`,
+    `WA: ${wa}`,
+    `Kode: ${code}`,
+    `Status: Menunggu approval admin`,
+    ``,
+    `Buka halaman admin → tab Agen untuk menyetujui.`,
+  ].join("\n");
+  await sendAdminAlert(text);
+}

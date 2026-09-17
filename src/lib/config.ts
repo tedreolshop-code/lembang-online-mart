@@ -1,3 +1,6 @@
+/** Provider notifikasi pesanan masuk ke pemilik warung. */
+export type NotifyProvider = "off" | "fonnte" | "telegram" | "discord";
+
 /** Pengaturan toko. Nilai default di bawah, tapi PEMILIK WARUNG bisa
     mengubah semuanya dari halaman Admin → tab "Pengaturan" (tersimpan di
     browser/localStorage, atau di database saat mode cloud aktif). */
@@ -20,11 +23,13 @@ export interface StoreSettings {
   /** password login halaman admin (mode lokal saja; cloud memakai Supabase Auth) */
   adminPassword: string;
   /** notifikasi pesanan masuk ke pemilik */
-  notifyProvider: "off" | "fonnte" | "telegram";
+  notifyProvider: NotifyProvider;
   /** Fonnte: token device · Telegram: bot token dari @BotFather */
   notifyToken: string;
   /** Fonnte: nomor WA pemilik (62…) · Telegram: chat_id pemilik */
   notifyTarget: string;
+  /** Discord: webhook URL (https://discord.com/api/webhooks/…) */
+  discordWebhook: string;
 
   /* ── tampilan (Admin → tab Tampilan) ────────────────────────── */
   /** warna utama: tombol, harga, badge, aksen (default oranye) */
@@ -93,6 +98,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   notifyProvider: "off",
   notifyToken: "",
   notifyTarget: "",
+  discordWebhook: "",
   colorPrimary: "#dc2626",
   colorDark: "#991b1b",
   logoUrl: "",

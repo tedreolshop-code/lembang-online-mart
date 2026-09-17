@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/lib/cart";
 import {
+  customerLogin,
+  customerLogout,
   forgetCustomer,
   saveCustomer,
   useAgentRef,
+  useCustomerAuth,
   useFavorites,
   useOrders,
   useSavedCustomer,
@@ -27,22 +30,29 @@ import {
   UserIcon,
 } from "@/components/Icons";
 
-/** Halaman Akun: pusat menu pelanggan (tab "Akun" di bar bawah layar dan
-    menu header). Situs ini belum punya login pelanggan — pesanan & favorit
-    tersimpan di perangkat ini — jadi isinya pintasan ke semua yang
-    dibutuhkan pembeli, data pengiriman yang diingat, dan pintu masuk ke
-    halaman info warung. */
+/** Halaman Akun: pusat menu pelanggan.
+    Login: No. WA + nama (tanpa OTP). Data tersimpan di database (mode cloud)
+    sehingga riwayat pesanan & data pengiriman ikut lintas perangkat. */
 export default function AkunPage() {
   const settings = useSettings();
   const orders = useOrders();
   const favorites = useFavorites();
   const { count, ready } = useCart();
-  // kode agen/referral yang sedang menempel di checkout (v6), boleh kosong
   const agentRef = useAgentRef();
-  // data pengiriman yang diingat perangkat ini (dipakai juga oleh checkout)
   const saved = useSavedCustomer();
+  const customer = useCustomerAuth();
 
-  // null = mode lihat; terisi = form sedang dibuka
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginForm, setLoginForm] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
+  const [loginMsg, setLoginMsg] = useState("");
+  const [loginErr, setLoginErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // form data pengiriman
   const [form, setForm] = useState<{
     name: string;
     phone: string;
@@ -53,13 +63,51 @@ export default function AkunPage() {
   const diproses = orders.filter(
     (o) => o.status === "menunggu" || o.status === "diproses",
   ).length;
-  const namaDepan = saved?.name.trim().split(/\s+/)[0];
+  const namaDepan = (customer?.name ?? saved?.name ?? "").trim().split(/\s+/)[0];
 
-  const bukaForm = () => {
-    setForm({
+  const bukaLogin = () => {
+    setLoginForm({
       name: saved?.name ?? "",
       phone: saved?.phone ?? "",
       address: saved?.address ?? "",
+    });
+    setLoginMsg("");
+    setLoginErr("");
+    setLoginOpen(true);
+  };
+
+  const submitLogin = async () => {
+    if (!loginForm.name.trim() || !loginForm.phone.trim()) {
+      setLoginErr("Nama dan No. WhatsApp wajib diisi.");
+      return;
+    }
+    setLoading(true);
+    setLoginErr("");
+    try {
+      const { isNew } = await customerLogin(
+        loginForm.phone,
+        loginForm.name,
+        loginForm.address,
+      );
+      setLoginMsg(isNew ? "Pendaftaran berhasil! Akunmu siap." : "Login berhasil!");
+      setLoginOpen(false);
+    } catch (err) {
+      setLoginErr(err instanceof Error ? err.message : "Gagal. Coba lagi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    customerLogout();
+    setLoginMsg("Berhasil keluar.");
+  };
+
+  const bukaForm = () => {
+    setForm({
+      name: saved?.name ?? customer?.name ?? "",
+      phone: saved?.phone ?? customer?.phone ?? "",
+      address: saved?.address ?? customer?.address ?? "",
     });
     setMsg("");
   };
@@ -72,7 +120,7 @@ export default function AkunPage() {
     }
     saveCustomer(form);
     setForm(null);
-    setMsg("Data pengiriman tersimpan di perangkat ini ✅");
+    setMsg("Data pengiriman tersimpan di perangkat ini.");
   };
 
   const hapusData = () => {
@@ -89,16 +137,27 @@ export default function AkunPage() {
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white/15">
             <UserIcon className="h-7 w-7" />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-lg font-extrabold sm:text-xl">
-              {namaDepan ? `Halo, ${namaDepan}! 👋` : "Akun Saya"}
+              {namaDepan ? `Halo, ${namaDepan}!` : "Akun Saya"}
             </h1>
             <p className="mt-0.5 text-xs text-white/80 sm:text-sm">
-              {saved
-                ? "Data pengirimanmu siap — checkout berikutnya terisi otomatis."
-                : "Belanja tanpa daftar — pesanan & favoritmu tersimpan di perangkat ini."}
+              {customer
+                ? "Akun aktif — riwayat & data ikut di mana pun kamu masuk."
+                : saved
+                  ? "Data pengirimanmu siap — checkout terisi otomatis."
+                  : "Masuk dengan No. WA untuk akses riwayat lintas perangkat."}
             </p>
           </div>
+          {customer && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="shrink-0 rounded-full border border-white/25 px-3 py-1.5 text-xs font-bold text-white/90 transition hover:bg-white/10"
+            >
+              Keluar
+            </button>
+          )}
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -107,11 +166,88 @@ export default function AkunPage() {
           <Stat label="Favorit" value={ready ? favorites.length : 0} />
         </div>
 
-        <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-[11px] leading-relaxed text-white/80">
-          🔒 Masuk/daftar akun pelanggan sedang disiapkan. Sementara ini
-          riwayat belanja & data pengiriman tetap aman di perangkat yang kamu
-          pakai.
-        </p>
+        {!customer && !loginOpen && (
+          <button
+            type="button"
+            onClick={bukaLogin}
+            className="mt-3 w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
+          >
+            Masuk / Daftar dengan No. WhatsApp
+          </button>
+        )}
+
+        {loginOpen && (
+          <div className="mt-3 space-y-3 rounded-xl bg-white/10 p-4">
+            <h3 className="text-sm font-bold text-white">
+              Masuk atau Daftar
+            </h3>
+            <p className="text-[11px] leading-relaxed text-white/70">
+              Cukup masukkan No. WhatsApp dan nama — tanpa OTP, tanpa ribet.
+              Data pesananmu akan ikut di mana pun kamu masuk.
+            </p>
+            <label className="block text-xs font-bold text-white/90">
+              Nama Lengkap *
+              <input
+                value={loginForm.name}
+                onChange={(e) =>
+                  setLoginForm({ ...loginForm, name: e.target.value })
+                }
+                placeholder="cth: Budi Santoso"
+                className="input mt-1"
+              />
+            </label>
+            <label className="block text-xs font-bold text-white/90">
+              Nomor WhatsApp *
+              <input
+                value={loginForm.phone}
+                onChange={(e) =>
+                  setLoginForm({ ...loginForm, phone: e.target.value })
+                }
+                placeholder="cth: 0812xxxxxxx"
+                inputMode="tel"
+                className="input mt-1"
+              />
+            </label>
+            <label className="block text-xs font-bold text-white/90">
+              Alamat (opsional)
+              <textarea
+                value={loginForm.address}
+                onChange={(e) =>
+                  setLoginForm({ ...loginForm, address: e.target.value })
+                }
+                placeholder="Nama jalan, RT/RW, desa/dusun, patokan…"
+                rows={2}
+                className="input mt-1 resize-none"
+              />
+            </label>
+            {loginErr && (
+              <p className="text-xs font-semibold text-red-300">{loginErr}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={submitLogin}
+                disabled={loading}
+                className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark disabled:opacity-60"
+              >
+                {loading ? "Memproses…" : "Masuk / Daftar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginOpen(false)}
+                className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loginMsg && !loginOpen && (
+          <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-[11px] leading-relaxed text-white/90">
+            {loginMsg}
+          </p>
+        )}
       </section>
 
       {/* data pengiriman yang diingat */}
@@ -126,35 +262,34 @@ export default function AkunPage() {
               onClick={bukaForm}
               className="rounded-full border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 transition hover:border-brand/40 hover:text-brand"
             >
-              {saved ? "Ubah" : "Isi data"}
+              {saved || customer ? "Ubah" : "Isi data"}
             </button>
           )}
         </div>
 
         {form === null ? (
-          saved ? (
+          (saved || customer) ? (
             <dl className="mt-3 space-y-2.5 text-sm">
               <Detail
                 icon={<UserIcon className="h-4 w-4" />}
                 label="Nama"
-                value={saved.name}
+                value={customer?.name ?? saved?.name ?? ""}
               />
               <Detail
                 icon={<PhoneIcon className="h-4 w-4" />}
                 label="No. HP / WhatsApp"
-                value={saved.phone}
+                value={customer?.phone ?? saved?.phone ?? ""}
               />
               <Detail
                 icon={<PinIcon className="h-4 w-4" />}
                 label="Alamat"
-                value={saved.address}
+                value={customer?.address ?? saved?.address ?? ""}
               />
             </dl>
           ) : (
             <p className="mt-3 text-sm leading-relaxed text-slate-500">
               Belum ada data tersimpan. Isi sekali di sini (atau saat checkout)
-              dan form pengiriman berikutnya terisi otomatis — hanya di
-              perangkat ini.
+              dan form pengiriman berikutnya terisi otomatis.
             </p>
           )
         ) : (
@@ -217,11 +352,6 @@ export default function AkunPage() {
                 </button>
               )}
             </div>
-
-            <p className="text-[11px] leading-relaxed text-slate-400">
-              Disimpan hanya di perangkat ini (localStorage) untuk mengisi
-              otomatis form checkout — bisa dihapus kapan saja.
-            </p>
           </div>
         )}
 
@@ -247,7 +377,7 @@ export default function AkunPage() {
           href="/pesanan?tab=favorit"
           icon={<HeartIcon className="h-5 w-5" />}
           title="Favorit"
-          desc="Produk yang kamu tandai ❤️"
+          desc="Produk yang kamu tandai"
           badge={
             ready && favorites.length > 0 ? `${favorites.length}` : undefined
           }
@@ -265,6 +395,28 @@ export default function AkunPage() {
           title="Semua Kategori"
           desc="Jelajahi kebutuhan harian"
         />
+      </section>
+
+      {/* daftar agen */}
+      <section className="rounded-2xl bg-brand-soft p-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🤝</span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-bold text-brand-dark">
+              Jadi Agen Lembang
+            </h2>
+            <p className="mt-0.5 text-xs text-brand-dark/80">
+              Dapat komisi dari setiap pesanan lewat link referral-mu
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/agen/daftar"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
+        >
+          Daftar Jadi Agen
+          <ChevronRightIcon className="h-4 w-4" />
+        </Link>
       </section>
 
       {agentRef && (
@@ -329,7 +481,7 @@ export default function AkunPage() {
           Chat WhatsApp Warung
         </a>
         <p className="mt-3 rounded-xl bg-brand-soft px-3 py-2.5 text-[11px] leading-relaxed text-brand-dark">
-          🚚 Gratis ongkir untuk belanja di atas{" "}
+          Gratis ongkir untuk belanja di atas{" "}
           {formatRupiah(settings.freeOngkirMin)}.
         </p>
       </section>

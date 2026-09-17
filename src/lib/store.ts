@@ -21,6 +21,7 @@ import type {
   Agent,
   AgentCommission,
   CommissionSettings,
+  Customer,
 } from "./types";
 import type { Coupon, Order, Product } from "./types";
 
@@ -631,6 +632,81 @@ export function saveCustomer(data: {
 export function forgetCustomer(): void {
   window.localStorage.removeItem(CUSTOMER_KEY);
   emit();
+}
+
+/* ── akun pelanggan (v8) — login/daftar No. WA + nama ────────────
+   Mode cloud: data tersimpan di tabel customers (lintas perangkat).
+   Mode lokal: fallback ke localStorage (sama seperti data pengiriman). */
+
+const CUSTOMER_AUTH_KEY = "los_customer_auth_v1";
+
+function readCustomerAuth(): Customer | null {
+  try {
+    const raw = localStorage.getItem(CUSTOMER_AUTH_KEY);
+    return raw ? (JSON.parse(raw) as Customer) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCustomerAuth(c: Customer): void {
+  localStorage.setItem(CUSTOMER_AUTH_KEY, JSON.stringify(c));
+  emit();
+}
+
+function clearCustomerAuth(): void {
+  localStorage.removeItem(CUSTOMER_AUTH_KEY);
+  emit();
+}
+
+/** Pelanggan yang sedang login (null bila belum login). Reaktif. */
+export function useCustomerAuth(): Customer | null {
+  return useSyncExternalStore(
+    subscribe,
+    readCustomerAuth,
+    () => null,
+  );
+}
+
+/** Daftar atau login pelanggan.
+    Cloud: upsert ke tabel customers → data tersinkron lintas perangkat.
+    Lokal: simpan di localStorage. */
+export async function customerLogin(
+  phone: string,
+  name: string,
+  address: string,
+): Promise<{ customer: Customer; isNew: boolean }> {
+  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  if (cloudMode) {
+    const res = await api<{ ok: boolean; customer: Customer; isNew: boolean }>(
+      "/api/customers",
+      {
+        method: "POST",
+        body: JSON.stringify({ phone: cleanPhone, name, address }),
+      },
+    );
+    writeCustomerAuth(res.customer);
+    // simpan juga ke data pengiriman agar checkout terisi otomatis
+    saveCustomer({
+      name: res.customer.name,
+      phone: res.customer.phone,
+      address: res.customer.address,
+    });
+    return { customer: res.customer, isNew: res.isNew };
+  }
+  const customer: Customer = {
+    phone: cleanPhone,
+    name: name.trim(),
+    address: address.trim(),
+  };
+  writeCustomerAuth(customer);
+  saveCustomer(customer);
+  return { customer, isNew: false };
+}
+
+/** Logout pelanggan (hapus sesi di perangkat ini, data tetap di server). */
+export function customerLogout(): void {
+  clearCustomerAuth();
 }
 
 /* ── voucher (mode ganda; kelola dari Admin → Voucher) ────────── */

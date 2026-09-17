@@ -2741,8 +2741,9 @@ function PengaturanTab() {
               🔔 Notifikasi Pesanan Masuk
             </h3>
             <p className="text-xs text-slate-400">
-              Pemilik langsung diberi tahu di WhatsApp/Telegram setiap ada
-              pesanan baru dari website.
+              Pemilik langsung diberi tahu di WhatsApp/Telegram/Discord setiap
+              ada pesanan baru dari website. Discord webhook juga menerima
+              notifikasi pendaftaran agen baru.
             </p>
           </div>
 
@@ -2758,48 +2759,67 @@ function PengaturanTab() {
               <option value="off">Matikan</option>
               <option value="fonnte">WhatsApp via Fonnte (fonnte.com)</option>
               <option value="telegram">Telegram Bot</option>
+              <option value="discord">Discord Webhook</option>
             </select>
           </label>
 
           {form.notifyProvider !== "off" && (
             <>
-              <div className="grid gap-3 sm:grid-cols-2">
+              {form.notifyProvider === "discord" ? (
                 <label className="block">
-                  <span className="form-label">
-                    {form.notifyProvider === "fonnte"
-                      ? "Nomor WA Penerima (62…)"
-                      : "Chat ID Telegram"}
-                  </span>
+                  <span className="form-label">Discord Webhook URL</span>
                   <input
-                    value={form.notifyTarget}
-                    onChange={(e) => set({ notifyTarget: e.target.value })}
-                    placeholder={
-                      form.notifyProvider === "fonnte"
-                        ? "6281234567890"
-                        : "cth: 123456789 (dari @userinfobot)"
+                    value={form.discordWebhook}
+                    onChange={(e) =>
+                      set({ discordWebhook: e.target.value })
                     }
+                    placeholder="https://discord.com/api/webhooks/…"
                     className="input"
                   />
                 </label>
-                <label className="block">
-                  <span className="form-label">
-                    {form.notifyProvider === "fonnte"
-                      ? "Token Fonnte (dari dashboard fonnte.com)"
-                      : "Token Bot (dari @BotFather)"}
-                  </span>
-                  <input
-                    type="password"
-                    value={form.notifyToken}
-                    onChange={(e) => set({ notifyToken: e.target.value })}
-                    placeholder={
-                      form.notifyToken
-                        ? "tersimpan — kosongkan bila tidak diubah"
-                        : "tempel token di sini"
-                    }
-                    className="input"
-                  />
-                </label>
-              </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="form-label">
+                      {form.notifyProvider === "fonnte"
+                        ? "Nomor WA Penerima (62…)"
+                        : "Chat ID Telegram"}
+                    </span>
+                    <input
+                      value={form.notifyTarget}
+                      onChange={(e) =>
+                        set({ notifyTarget: e.target.value })
+                      }
+                      placeholder={
+                        form.notifyProvider === "fonnte"
+                          ? "6281234567890"
+                          : "cth: 123456789 (dari @userinfobot)"
+                      }
+                      className="input"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="form-label">
+                      {form.notifyProvider === "fonnte"
+                        ? "Token Fonnte (dari dashboard fonnte.com)"
+                        : "Token Bot (dari @BotFather)"}
+                    </span>
+                    <input
+                      type="password"
+                      value={form.notifyToken}
+                      onChange={(e) =>
+                        set({ notifyToken: e.target.value })
+                      }
+                      placeholder={
+                        form.notifyToken
+                          ? "tersimpan — kosongkan bila tidak diubah"
+                          : "tempel token di sini"
+                      }
+                      className="input"
+                    />
+                  </label>
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
@@ -2835,7 +2855,9 @@ function PengaturanTab() {
               <p className="text-[11px] leading-relaxed text-slate-400">
                 {form.notifyProvider === "fonnte"
                   ? "Fonnte punya paket gratis: daftar di fonnte.com → hubungkan device WhatsApp → salin token."
-                  : "Buat bot lewat @BotFather → salin token → kirim pesan ke bot sekali → ambil chat_id lewat @userinfobot."}
+                  : form.notifyProvider === "telegram"
+                    ? "Buat bot lewat @BotFather → salin token → kirim pesan ke bot sekali → ambil chat_id lewat @userinfobot."
+                    : "Discord: Server Settings → Integrations → Webhooks → New Webhook → salin URL. Webhook ini juga menerima notifikasi pendaftaran agen baru."}
               </p>
             </>
           )}
