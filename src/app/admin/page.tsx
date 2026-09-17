@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon, listAgents, upsertAgent, deleteAgent, getCommissionSettings, saveCommissionSettings, listCommissions, commissionAction, overrideCommission, listAgentPrices, upsertAgentPrice, deleteAgentPrice } from "@/lib/store";
 import { printOrderStruk } from "@/lib/printStruk";
-import { cloudMode, adminLogin, adminLogout, hasAdminSession, localLogin, authHeaders } from "@/lib/auth";
+import { cloudMode, adminLogin, adminLogout, hasAdminSession, localLogin, authHeaders, verifyAdminSession } from "@/lib/auth";
 import { DEFAULT_SETTINGS, formatWaDigits, type StoreSettings } from "@/lib/config";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { agentShareLink, DEFAULT_COMMISSION_SETTINGS, effectiveCommission, isCommissionReady } from "@/lib/agent";
@@ -32,8 +32,19 @@ export default function AdminPage() {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    setLoggedIn(hasAdminSession());
-    setChecked(true);
+    let alive = true;
+    // Token tersimpan belum tentu milik admin: Supabase Auth terbuka untuk
+    // pendaftaran, jadi verifikasi ke server sebelum menampilkan dashboard.
+    void (async () => {
+      const ok = hasAdminSession() && (await verifyAdminSession()).ok;
+      if (!ok) await adminLogout();
+      if (!alive) return;
+      setLoggedIn(ok);
+      setChecked(true);
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   if (!checked) return null;
@@ -62,6 +73,13 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
         // mode database: Supabase Auth email + password
         const res = await adminLogin(email.trim(), password);
         if (!res.ok) throw new Error(res.error ?? "Login gagal.");
+        // Berhasil login Supabase ≠ admin: pendaftaran akun terbuka, jadi
+        // emailnya wajib terdaftar di ADMIN_EMAIL sebelum masuk dashboard.
+        const cek = await verifyAdminSession();
+        if (!cek.ok) {
+          await adminLogout();
+          throw new Error(cek.error ?? "Akun ini bukan admin.");
+        }
       } else {
         // mode lokal demo: password dari Pengaturan
         if (password !== settings.adminPassword) {
@@ -304,14 +322,14 @@ const SETUP_STEPS: {
   {
     icon: "⚙️",
     title: "1. Pengaturan Toko",
-    desc: "Isi nama toko, nomor WhatsApp penerima pesanan, alamat, jam operasional, ongkir & gratis ongkir. Jangan lupa GANTI PASSWORD admin!",
+    desc: "Isi nama toko, nomor WhatsApp penerima pesanan, alamat, jam operasional, ongkir & gratis ongkir. Pastikan ADMIN_EMAIL di file .env sudah berisi email admin — kalau belum, tidak ada yang bisa masuk dashboard.",
     action: { label: "Buka Pengaturan", tab: "pengaturan" },
     checklist: [
       "Nama toko & slogan",
       "Nomor WhatsApp penerima pesanan",
       "Alamat & jam operasional",
       "Ongkir & batas gratis ongkir",
-      "Ganti password admin (dari admin123)",
+      "ADMIN_EMAIL di .env sudah diisi email admin",
     ],
   },
   {

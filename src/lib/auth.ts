@@ -81,6 +81,31 @@ export async function adminLogin(
   return { ok: true };
 }
 
+/** Pastikan sesi tersimpan benar-benar milik admin terdaftar (mode cloud).
+    Return error berisi pesan siap tampil bila bukan. */
+export async function verifyAdminSession(): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  if (!cloudMode) return { ok: true };
+  if (!hasAdminSession()) return { ok: false, error: "Sesi tidak ditemukan." };
+  try {
+    const res = await fetch("/api/admin/whoami", { headers: authHeaders() });
+    if (res.ok) return { ok: true };
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    return {
+      ok: false,
+      error:
+        body?.error ??
+        "Akun ini bukan admin. Daftar akun di halaman ini tidak membuka akses dashboard.",
+    };
+  } catch {
+    return { ok: false, error: "Gagal memverifikasi sesi, coba lagi." };
+  }
+}
+
 export async function adminLogout(): Promise<void> {
   if (cloudMode && readSession()) {
     try {
