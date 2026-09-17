@@ -1,5 +1,5 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
-import { rowToOrder } from "@/lib/rows";
+import { rowToOrder, orderWithoutCostPrice } from "@/lib/rows";
 
 /** POST: riwayat pesanan milik perangkat ini (publik, terbatas daftar id
     yang tersimpan di browser pelanggan — tanpa membuka data orang lain).
@@ -23,5 +23,8 @@ export async function POST(req: Request) {
     .in("id", ids)
     .order("created_at", { ascending: false });
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json((data ?? []).map(rowToOrder));
+  // publik: HPP per item tidak boleh ikut terkirim
+  return Response.json(
+    (data ?? []).map((r) => orderWithoutCostPrice(rowToOrder(r))),
+  );
 }

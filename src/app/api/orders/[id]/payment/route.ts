@@ -1,5 +1,5 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
-import { rowToOrder } from "@/lib/rows";
+import { rowToOrder, orderWithoutCostPrice } from "@/lib/rows";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -56,5 +56,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
     .select("*, order_items(*)")
     .eq("id", id)
     .single();
-  return Response.json(rowToOrder(fresh!));
+  // publik: HPP per item tidak boleh ikut terkirim
+  return Response.json(orderWithoutCostPrice(rowToOrder(fresh!)));
 }

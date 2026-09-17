@@ -1,5 +1,5 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
-import { rowToOrder, rowToSettings } from "@/lib/rows";
+import { rowToOrder, rowToSettings, orderWithoutCostPrice } from "@/lib/rows";
 import { couponDiscount, rowToCoupon } from "@/lib/coupon";
 import { unitPriceWithAgent } from "@/lib/pricing";
 import type { AgentPriceLine } from "@/lib/types";
@@ -216,7 +216,12 @@ export async function POST(req: Request) {
       after(async () => {
         await sendOrderNotification(settings, order);
       });
-      return Response.json({ order, total: data });
+      // endpoint ini publik → HPP yang ikut tersimpan di order_items
+      // dibuang sebelum dikirim balik ke pembeli.
+      return Response.json({
+        order: orderWithoutCostPrice(order),
+        total: data,
+      });
     }
     lastError = error.message;
     if (!lastError.includes("kode pesanan sudah terpakai")) break;

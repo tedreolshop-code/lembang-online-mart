@@ -440,6 +440,17 @@ create policy "publik baca kategori" on categories
 drop policy if exists "publik baca produk" on products;
 create policy "publik baca produk" on products
   for select using (true);
+-- Katalog boleh dibaca publik, TAPI kolom HPP tidak. RLS mengatur baris, bukan
+-- kolom, jadi hak baca tabel dicabut lalu diberikan ulang per kolom — kalau
+-- hanya kolomnya yang dicabut, grant tingkat tabel tetap menang dan HPP bocor
+-- lewat anon key (lihat sql/alter-v10.sql).
+revoke select on products from anon, authenticated;
+grant select (
+  id, name, category_slug, price, old_price, unit, emoji,
+  image_url, stock, is_promo, is_bestseller, is_new, description, position,
+  created_at, updated_at
+) on products to anon, authenticated;
+revoke select on order_items from anon, authenticated;
 drop policy if exists "publik baca pengaturan" on settings;
 create policy "publik baca pengaturan" on settings
   for select using (true);

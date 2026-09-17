@@ -42,6 +42,33 @@ export function rowToProduct(r: ProductRow): Product {
   };
 }
 
+/** Produk tanpa HPP — untuk respons yang bisa dibaca publik.
+    Field-nya dihapus, bukan di-set undefined, supaya `costPrice` benar-benar
+    tidak muncul di JSON (kalau hanya undefined, sebagian serializer tetap
+    menuliskannya sebagai `null`). */
+export function withoutCostPrice(p: Product): Product {
+  const out: Product = { ...p };
+  delete out.costPrice;
+  return out;
+}
+
+/** Pesanan dengan snapshot HPP tiap item dibuang.
+
+    Dipakai respons PUBLIK (buat pesanan, lookup riwayat, pilih pembayaran):
+    menyertakan HPP sama saja membocorkan modal per produk ke pembeli.
+    Sengaja TIDAK dipakai di `GET /api/orders` yang khusus admin, karena di
+    situ HPP memang dibutuhkan untuk laporan laba. */
+export function orderWithoutCostPrice(o: Order): Order {
+  return {
+    ...o,
+    items: o.items.map((i) => {
+      const item: OrderItem = { ...i };
+      delete item.costPrice;
+      return item;
+    }),
+  };
+}
+
 export function productToRow(p: Product): Record<string, unknown> {
   return {
     id: p.id,

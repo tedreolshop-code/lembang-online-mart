@@ -1,9 +1,15 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
-import { rowToProduct, productToRow } from "@/lib/rows";
+import { rowToProduct, productToRow, withoutCostPrice } from "@/lib/rows";
 import { replaceProductTiers, tiersForProducts } from "@/lib/product-tiers";
 
-export async function GET() {
+/** GET: katalog produk.
+    HPP (costPrice) HANYA dikirim bila pemanggilnya admin terdaftar — halaman
+    publik memakai endpoint yang sama, jadi tanpa pembedaan ini modal usaha
+    ikut terkirim ke setiap pengunjung. */
+export async function GET(req: Request) {
   if (!isCloud) return cloudRequired();
+  const isAdmin = !!(await requireAdmin(req));
+
   const { data, error } = await db()
     .from("products")
     .select("*")
@@ -21,8 +27,13 @@ export async function GET() {
     (data ?? []).map((r) => {
       const p = rowToProduct(r);
       const tiers = byProduct.get(p.id);
-      return tiers && tiers.length > 0 ? { ...p, tiers } : p;
+      const withTiers =
+        tiers && tiers.length > 0 ? { ...p, tiers } : p;
+      return isAdmin ? withTiers : withoutCostPrice(withTiers);
     }),
+    // URL yang sama kini berisi berbeda tergantung token: pastikan tidak ada
+    // cache bersama yang menyimpan respons admin lalu menyajikannya ke publik.
+    { headers: { "Cache-Control": "no-store" } },
   );
 }
 
