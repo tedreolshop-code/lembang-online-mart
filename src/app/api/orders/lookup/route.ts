@@ -1,5 +1,11 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
 import { rowToOrder, orderWithoutCostPrice } from "@/lib/rows";
+import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
+
+/** Kode pesanan acak (8 karakter dari 32 simbol) praktis tidak bisa ditebak,
+    tapi tanpa batas laju endpoint ini tetap bisa digempur. Batasnya dilonggarkan
+    karena satu kunjungan wajar bisa memuat beberapa kali (sinkron berkala). */
+const LOOKUP_LIMIT = { max: 30, windowMs: 60 * 1000 };
 
 /** POST: riwayat pesanan milik perangkat ini (publik, terbatas daftar id
     yang tersimpan di browser pelanggan — tanpa membuka data orang lain).
@@ -8,6 +14,10 @@ import { rowToOrder, orderWithoutCostPrice } from "@/lib/rows";
     tidak dipakai menanyakan string sembarang ke database. */
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
+
+  const tunggu = hitRateLimit(`lookup:${clientIp(req)}`, LOOKUP_LIMIT);
+  if (tunggu !== null) return tooManyRequests(tunggu);
+
   const body = await req.json();
   const ids: string[] = Array.isArray(body?.ids)
     ? body.ids

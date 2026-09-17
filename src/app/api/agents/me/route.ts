@@ -1,13 +1,22 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
 import { formatWaDigits } from "@/lib/config";
+import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { normalizeAgentCode, rowToAgent, rowToCommission, effectiveCommission, isCommissionReady } from "@/lib/agent";
 
 /** Dashboard agen — data profil + ringkasan komisi + riwayat pesanan.
     Agen login dengan No. WA + kode unik (diberikan saat daftar disetujui).
     Tidak butuh admin auth — kode agen adalah kuncinya. */
 
+/** Batas per IP: endpoint ini memverifikasi pasangan No. WA + kode agen, jadi
+    tanpa batas laju pasangan itu bisa digempur sampai ketemu. */
+const AGEN_LIMIT = { max: 10, windowMs: 5 * 60 * 1000 };
+
 export async function GET(req: Request) {
   if (!isCloud) return cloudRequired();
+
+  const tunggu = hitRateLimit(`agen-me:${clientIp(req)}`, AGEN_LIMIT);
+  if (tunggu !== null) return tooManyRequests(tunggu);
+
   const url = new URL(req.url);
   const wa = formatWaDigits(url.searchParams.get("wa") ?? "");
   const code = normalizeAgentCode(url.searchParams.get("code") ?? "");

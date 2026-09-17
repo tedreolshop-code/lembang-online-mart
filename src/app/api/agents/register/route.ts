@@ -1,13 +1,21 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
 import { formatWaDigits } from "@/lib/config";
+import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { newAgentCode } from "@/lib/agent";
 import { sendAgentRegisterNotification } from "@/lib/notify";
 
 /** POST: agen mendaftar mandiri (publik — tidak butuh login admin).
     Status awal selalu "pending" → admin approve di tab Agen.
     Setelah daftar, notifikasi dikirim ke Telegram + Discord admin. */
+/** Batas pendaftaran agen per IP — menahan pembuatan akun agen massal. */
+const DAFTAR_AGEN_LIMIT = { max: 3, windowMs: 60 * 60 * 1000 };
+
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
+
+  const tunggu = hitRateLimit(`agen-daftar:${clientIp(req)}`, DAFTAR_AGEN_LIMIT);
+  if (tunggu !== null) return tooManyRequests(tunggu);
+
   const body = await req.json().catch(() => null);
   if (!body) return Response.json({ error: "Body kosong." }, { status: 400 });
 

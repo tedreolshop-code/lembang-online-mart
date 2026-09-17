@@ -1,11 +1,22 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
 import { formatWaDigits } from "@/lib/config";
+import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
+
+/** Batas pendaftaran per IP: nomor HP Indonesia bisa ditebak berurutan, jadi
+    tanpa batas ini seseorang bisa memetakan pelanggan lewat percobaan massal. */
+const DAFTAR_LIMIT = { max: 5, windowMs: 10 * 60 * 1000 };
 
 /** Tabel customers — No. WA sebagai identitas utama (bukan email).
-    Tanpa OTP di fase awal: daftar/login cukup No. WA + nama.
 
-  POST /api/customers  →  daftar atau login (upsert by phone)
-  GET  /api/customers?phone=628xxx  →  ambil data pelanggan (untuk cek profil)
+  POST /api/customers  →  daftar pelanggan baru
+
+  CATATAN KEAMANAN
+  Sempat ada `GET /api/customers?phone=628xxx` yang mengembalikan nama +
+  alamat hanya bermodal nomor HP. Nomor HP bukan rahasia dan bisa
+  dienumerasi berurutan, jadi endpoint itu setara membuka seluruh isi tabel
+  pelanggan satu per satu — apalagi pesan 404-nya membedakan nomor terdaftar
+  dari yang tidak, sehingga daftar pelanggan toko bisa dipetakan. Endpoint
+  itu tidak pernah dipakai kode mana pun dan kini dihapus.
 */
 
 function cleanPhone(raw: string): string | null {
@@ -13,11 +24,21 @@ function cleanPhone(raw: string): string | null {
   return digits.length >= 8 ? digits : null;
 }
 
-/** POST: daftar pelanggan baru atau login (No. WA + nama).
-    Bila No. WA sudah ada → perbarui nama/alamat, kembalikan data lama.
-    Bila baru → buat baris baru. */
+/** POST: daftar pelanggan baru (No. WA + nama + alamat).
+
+    SENGAJA TIDAK menimpa pelanggan yang sudah terdaftar. Dulu operasinya
+    `upsert` tanpa verifikasi apa pun, sehingga siapa pun bisa mengisi nomor
+    HP orang lain, "mendaftar", lalu alamat korban tertimpa alamat penyerang —
+    pesanan korban berikutnya bisa dikirim ke alamat penyerang. Untuk nomor
+    yang sudah terdaftar sekarang dikembalikan 409 dengan pesan netral, tanpa
+    membocorkan nama/alamat yang tersimpan. */
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
+
+  const ip = clientIp(req);
+  const tunggu = hitRateLimit(`customers:${ip}`, DAFTAR_LIMIT);
+  if (tunggu !== null) return tooManyRequests(tunggu);
+
   const body = await req.json().catch(() => null);
   if (!body) return Response.json({ error: "Body kosong." }, { status: 400 });
 
@@ -45,7 +66,20 @@ export async function POST(req: Request) {
     .eq("phone", phone)
     .maybeSingle();
 
-  const { error } = await db().from("customers").upsert(row);
+  if (existing) {
+    // Tanpa OTP, "nomor sudah terdaftar" tidak bisa dibedakan dari "nomor ini
+    // milik orang lain yang sedang ditebak". Karena itu permintaan ditolak —
+    // bukan ditimpa, dan bukan pula dibalas dengan data tersimpan.
+    return Response.json(
+      {
+        error:
+          "Nomor ini sudah pernah dipakai. Lanjutkan checkout seperti biasa, data pengiriman bisa diisi langsung di halaman checkout.",
+      },
+      { status: 409 },
+    );
+  }
+
+  const { error } = await db().from("customers").insert(row);
   if (error) {
     return Response.json(
       { error: "Gagal menyimpan data pelanggan." },
@@ -56,35 +90,6 @@ export async function POST(req: Request) {
   return Response.json({
     ok: true,
     customer: { phone, name, address },
-    isNew: !existing,
-  });
-}
-
-/** GET: ambil data pelanggan by phone (untuk cek profil / login). */
-export async function GET(req: Request) {
-  if (!isCloud) return cloudRequired();
-  const phone = cleanPhone(
-    new URL(req.url).searchParams.get("phone") ?? "",
-  );
-  if (!phone) {
-    return Response.json({ error: "Nomor WhatsApp tidak valid." }, { status: 400 });
-  }
-
-  const { data } = await db()
-    .from("customers")
-    .select("phone,name,address,created_at")
-    .eq("phone", phone)
-    .maybeSingle();
-
-  if (!data) {
-    return Response.json({ error: "Pelanggan belum terdaftar." }, { status: 404 });
-  }
-
-  return Response.json({
-    customer: {
-      phone: data.phone,
-      name: data.name,
-      address: data.address ?? "",
-    },
+    isNew: true,
   });
 }
