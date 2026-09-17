@@ -11,6 +11,7 @@ export interface ProductRow {
   category_slug: string | null;
   price: number;
   old_price: number | null;
+  cost_price: number | null;
   unit: string;
   emoji: string;
   image_url: string | null;
@@ -29,6 +30,7 @@ export function rowToProduct(r: ProductRow): Product {
     category: r.category_slug ?? "",
     price: r.price,
     oldPrice: r.old_price ?? undefined,
+    costPrice: r.cost_price ?? undefined,
     unit: r.unit,
     emoji: r.emoji,
     image: r.image_url ?? undefined,
@@ -47,6 +49,7 @@ export function productToRow(p: Product): Record<string, unknown> {
     category_slug: p.category || null,
     price: p.price,
     old_price: p.oldPrice ?? null,
+    cost_price: p.costPrice ?? null,
     unit: p.unit,
     emoji: p.emoji,
     image_url: p.image ?? null,
@@ -150,6 +153,7 @@ export interface ItemRow {
   qty: number;
   unit: string;
   emoji: string;
+  cost_price?: number | null;
 }
 
 export function rowToOrder(r: OrderRow): Order {
@@ -160,6 +164,7 @@ export function rowToOrder(r: OrderRow): Order {
     qty: i.qty,
     unit: i.unit,
     emoji: i.emoji,
+    costPrice: i.cost_price ?? undefined,
   }));
   return {
     id: r.id,

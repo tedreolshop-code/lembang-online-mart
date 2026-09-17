@@ -360,6 +360,7 @@ function ProdukTab() {
               <th className="px-3 py-2.5">Produk</th>
               <th className="px-3 py-2.5">Kategori</th>
               <th className="px-3 py-2.5">Harga</th>
+              <th className="hidden px-3 py-2.5 sm:table-cell">HPP</th>
               <th className="hidden px-3 py-2.5 sm:table-cell">Stok</th>
               <th className="hidden px-3 py-2.5 sm:table-cell">Label</th>
               <th className="px-3 py-2.5 text-right">Aksi</th>
@@ -389,6 +390,15 @@ function ProdukTab() {
                     <div className="text-[11px] text-slate-400 line-through">
                       {formatRupiah(p.oldPrice)}
                     </div>
+                  )}
+                </td>
+                <td className="hidden px-3 py-2.5 text-xs sm:table-cell">
+                  {p.costPrice ? (
+                    <span className="text-slate-500">
+                      {formatRupiah(p.costPrice)}
+                    </span>
+                  ) : (
+                    <span className="text-slate-300">—</span>
                   )}
                 </td>
                 <td className="hidden px-3 py-2.5 sm:table-cell">
@@ -548,6 +558,30 @@ function ProductForm({
             }
             className="input"
           />
+        </label>
+
+        <label className="block">
+          <span className="form-label">Harga Beli / HPP (Rp)</span>
+          <input
+            type="number"
+            min={0}
+            value={p.costPrice ?? ""}
+            onChange={(e) =>
+              set({
+                costPrice: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            className="input"
+          />
+          <span className="mt-1 block text-[11px] text-slate-400">
+            {p.costPrice && p.costPrice > 0
+              ? `Laba per unit: ${formatRupiah(p.price - p.costPrice)}${
+                  p.price > p.costPrice
+                    ? ` (${Math.round(((p.price - p.costPrice) / p.price) * 100)}%)`
+                    : " — ⚠️ jual di bawah modal"
+                }`
+              : "Modal per unit — dipakai hitung laba di Laporan"}
+          </span>
         </label>
 
         <label className="block">
@@ -942,6 +976,7 @@ const PERIODE_LABEL: Record<Periode, string> = {
 
 function LaporanTab() {
   const orders = useOrders();
+  const products = useProducts();
   const [period, setPeriod] = useState<Periode>("hari");
 
   const since =
@@ -961,8 +996,19 @@ function LaporanTab() {
     (a, o) => a + o.items.reduce((s, i) => s + i.qty, 0),
     0,
   );
+  // laba kotor (v7): omzet − HPP snapshot per item. Item dengan HPP 0
+  // (belum diisi) ikut omzet tapi tanpa modal, jadi laba tampak lebih besar.
+  const hpp = valid.reduce(
+    (a, o) => a + o.items.reduce((s, i) => s + i.qty * (i.costPrice ?? 0), 0),
+    0,
+  );
+  const laba = omzet - hpp;
+  const hppKurang = products.filter((x) => !x.costPrice).length;
 
-  const top = new Map<string, { emoji: string; name: string; qty: number; omzet: number }>();
+  const top = new Map<
+    string,
+    { emoji: string; name: string; qty: number; omzet: number; hpp: number }
+  >();
   for (const o of valid) {
     for (const i of o.items) {
       const cur = top.get(i.productId) ?? {
@@ -970,9 +1016,11 @@ function LaporanTab() {
         name: i.name,
         qty: 0,
         omzet: 0,
+        hpp: 0,
       };
       cur.qty += i.qty;
       cur.omzet += i.price * i.qty;
+      cur.hpp += i.qty * (i.costPrice ?? 0);
       top.set(i.productId, cur);
     }
   }
@@ -995,11 +1043,20 @@ function LaporanTab() {
         ))}
       </div>
 
-      <div className="mb-4 grid max-w-xl grid-cols-3 gap-2">
+      <div className="mb-2 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-5">
         <StatCard label="Omzet" value={omzet} tone="normal" isRupiah />
+        <StatCard label="Laba Kotor" value={laba} tone="normal" isRupiah />
+        <StatCard label="Modal (HPP)" value={hpp} tone="normal" isRupiah />
         <StatCard label="Transaksi" value={valid.length} tone="normal" />
         <StatCard label="Barang Terjual" value={barang} tone="normal" />
       </div>
+      {hppKurang > 0 && (
+        <p className="mb-4 text-xs text-slate-400">
+          ⚠️ Harga Beli/HPP belum diisi untuk {hppKurang} produk — laba di atas
+          kelebihan karena barang itu dihitung tanpa modal. Isi di Admin →
+          Produk pada kolom Harga Beli / HPP.
+        </p>
+      )}
 
       {dibatalkan > 0 && (
         <p className="mb-4 text-xs text-slate-400">
@@ -1021,7 +1078,7 @@ function LaporanTab() {
               <tr>
                 <th className="px-3 py-2.5">Produk</th>
                 <th className="px-3 py-2.5">Terjual</th>
-                <th className="px-3 py-2.5 text-right">Omzet</th>
+                <th className="px-3 py-2.5 text-right">Omzet (Laba)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1036,6 +1093,11 @@ function LaporanTab() {
                   </td>
                   <td className="px-3 py-2.5 text-right font-extrabold text-brand">
                     {formatRupiah(t.omzet)}
+                    {t.hpp > 0 && (
+                      <div className="text-[11px] font-semibold text-slate-400">
+                        laba {formatRupiah(t.omzet - t.hpp)}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

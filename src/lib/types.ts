@@ -13,6 +13,8 @@ export interface Product {
   price: number;
   /** harga normal sebelum diskon, opsional */
   oldPrice?: number;
+  /** harga beli / HPP per unit (v6) — dipakai hitung laba di Admin → Laporan; 0/kosong = belum diisi */
+  costPrice?: number;
   /** kemasan, mis. "1 dus @ 40 pcs" */
   unit: string;
   emoji: string;
@@ -46,6 +48,8 @@ export interface OrderItem {
   qty: number;
   unit: string;
   emoji: string;
+  /** snapshot HPP per unit saat pesanan dibuat (0/kosong = HPP belum diisi saat itu) */
+  costPrice?: number;
 }
 
 export type OrderStatus = "menunggu" | "diproses" | "selesai" | "dibatalkan";

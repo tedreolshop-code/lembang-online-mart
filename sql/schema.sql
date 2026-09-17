@@ -68,7 +68,8 @@ create table if not exists order_items (
   price      int  not null,
   qty        int  not null check (qty > 0),
   unit       text not null,
-  emoji      text not null default '🛒'
+  emoji      text not null default '🛒',
+  cost_price int  not null default 0          -- snapshot HPP saat pesanan (v7)
 );
 create index if not exists order_items_order_idx on order_items (order_id);
 
@@ -344,9 +345,10 @@ begin
   for v_item in select * from jsonb_array_elements(v_lines) loop
     select * into v_product from products where id = v_item->>'productId';
 
-    insert into order_items (order_id, product_id, name, price, qty, unit, emoji)
+    insert into order_items (order_id, product_id, name, price, qty, unit, emoji, cost_price)
     values (p_id, v_product.id, v_product.name, (v_item->>'price')::int,
-            (v_item->>'qty')::int, v_product.unit, v_product.emoji);
+            (v_item->>'qty')::int, v_product.unit, v_product.emoji,
+            v_product.cost_price);
 
     update products
       set stock = stock - (v_item->>'qty')::int, updated_at = now()

@@ -14,6 +14,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (body.category !== undefined) row.category_slug = body.category || null;
   if (body.price !== undefined) row.price = body.price;
   if (body.oldPrice !== undefined) row.old_price = body.oldPrice ?? null;
+  if (body.costPrice !== undefined) row.cost_price = Math.max(0, Number(body.costPrice) || 0);
   if (body.unit !== undefined) row.unit = body.unit;
   if (body.emoji !== undefined) row.emoji = body.emoji;
   if (body.image !== undefined) row.image_url = body.image ?? null;

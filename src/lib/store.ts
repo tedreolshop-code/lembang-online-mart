@@ -399,6 +399,8 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
       qty: l.qty,
       unit: l.product.unit,
       emoji: l.product.emoji,
+      // snapshot HPP saat pesanan dibuat — dasar hitung laba di Laporan
+      costPrice: l.product.costPrice ?? 0,
     })),
     subtotal,
     discount,
