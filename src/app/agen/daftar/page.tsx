@@ -80,19 +80,31 @@ export default function AgenDaftarPage() {
             <p className="text-xs text-brand-dark">Kode Agen Kamu</p>
             <p className="font-mono text-xl font-bold text-brand">{ok.code}</p>
           </div>
-          <div className="mt-4 flex flex-col gap-2">
+          <div className="mt-4 space-y-2">
             <Link
-              href="/"
-              className="rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
+              href="/agen/dashboard"
+              className="block w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
             >
-              Kembali ke Beranda
+              Lihat Dashboard Agen
             </Link>
-            <Link
-              href="/akun"
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:border-slate-300"
-            >
-              Lihat Akun Saya
-            </Link>
+            <p className="text-[11px] leading-relaxed text-slate-500">
+              Setelah admin menyetujui, masuk ke dashboard dengan No. WA + kode
+              agen di atas untuk melihat komisi & link referral-mu.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <Link
+                href="/"
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:border-slate-300"
+              >
+                Beranda
+              </Link>
+              <Link
+                href="/akun"
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:border-slate-300"
+              >
+                Akun
+              </Link>
+            </div>
           </div>
         </section>
       </div>

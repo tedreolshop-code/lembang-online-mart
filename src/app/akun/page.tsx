@@ -410,13 +410,22 @@ export default function AkunPage() {
             </p>
           </div>
         </div>
-        <Link
-          href="/agen/daftar"
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
-        >
-          Daftar Jadi Agen
-          <ChevronRightIcon className="h-4 w-4" />
-        </Link>
+        <div className="mt-3 flex gap-2">
+          <Link
+            href="/agen/daftar"
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
+          >
+            Daftar Jadi Agen
+            <ChevronRightIcon className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/agen/dashboard"
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-brand/30 bg-white px-4 py-2.5 text-sm font-bold text-brand transition hover:border-brand/50"
+          >
+            Dashboard Agen
+            <ChevronRightIcon className="h-4 w-4" />
+          </Link>
+        </div>
       </section>
 
       {agentRef && (

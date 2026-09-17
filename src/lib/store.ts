@@ -709,6 +709,53 @@ export function customerLogout(): void {
   clearCustomerAuth();
 }
 
+/* ── akun agen (v8) — login dashboard dengan No. WA + kode ──────
+   Agen memasukkan No. WA + kode unik (diberikan saat daftar disetujui)
+   untuk melihat ringkasan komisi, riwayat pesanan, dan link referral.
+   Data sesi disimpan di localStorage per perangkat. */
+
+const AGEN_AUTH_KEY = "los_agen_auth_v1";
+
+export interface AgenAuth {
+  code: string;
+  wa: string;
+  nama: string;
+}
+
+function readAgenAuth(): AgenAuth | null {
+  try {
+    const raw = localStorage.getItem(AGEN_AUTH_KEY);
+    return raw ? (JSON.parse(raw) as AgenAuth) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeAgenAuth(a: AgenAuth): void {
+  localStorage.setItem(AGEN_AUTH_KEY, JSON.stringify(a));
+  emit();
+}
+
+function clearAgenAuth(): void {
+  localStorage.removeItem(AGEN_AUTH_KEY);
+  emit();
+}
+
+/** Agen yang sedang login (null bila belum). Reaktif. */
+export function useAgenAuth(): AgenAuth | null {
+  return useSyncExternalStore(subscribe, readAgenAuth, () => null);
+}
+
+/** Login agen — simpan sesi di perangkat. */
+export function agenLogin(code: string, wa: string, nama: string): void {
+  writeAgenAuth({ code, wa, nama });
+}
+
+/** Logout agen. */
+export function agenLogout(): void {
+  clearAgenAuth();
+}
+
 /* ── voucher (mode ganda; kelola dari Admin → Voucher) ────────── */
 
 const EMPTY_COUPONS: Coupon[] = [];
