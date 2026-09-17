@@ -1,8 +1,9 @@
-import type { PriceTier, Product } from "./types";
+import type { AgentPriceLine, PriceTier, Product } from "./types";
 
 /** Logika harga bersama (mode lokal & server). HARUS sama dengan perhitungan
-    di fungsi database `create_order` (sql/alter-v6.sql): harga yang dipakai
-    adalah tier grosir dengan `minQty` terbesar yang masih <= jumlah dibeli. */
+    di fungsi database `create_order` (sql/alter-v9.sql): harga yang dipakai
+    adalah tier grosir dengan `minQty` terbesar yang masih <= jumlah dibeli,
+    dan untuk pembeli dari tautan agen harga khusus agen menimpanya. */
 
 /** Tier yang berlaku untuk sejumlah qty; null bila tidak ada tier memenuhi. */
 export function tierFor(
@@ -40,6 +41,58 @@ export function lineSubtotal(
   qty: number,
 ): number {
   return unitPrice(product, qty) * qty;
+}
+
+/* ── harga khusus agen (v9) ─────────────────────────────────────── */
+/* Pembeli yang datang dari tautan referral agen membayar harga khusus
+   agen bila ada barisnya; kalau tidak ada → harga normal/grosir.
+   Aturan ini HARUS sama dengan create_order versi v9 di database. */
+
+/** Harga khusus untuk satu produk; undefined = tidak ada (pakai normal). */
+export function agentPriceFor(
+  prices: AgentPriceLine[] | null | undefined,
+  productId: string,
+): number | undefined {
+  if (!prices || prices.length === 0) return undefined;
+  const row = prices.find((p) => p.productId === productId);
+  return row && row.price > 0 ? row.price : undefined;
+}
+
+/** Harga satuan untuk pembeli dari tautan agen: harga khusus agen menimpa
+    harga normal & grosir, sama seperti aturan di `create_order`. */
+export function unitPriceWithAgent(
+  product: Pick<Product, "id" | "price" | "tiers">,
+  qty: number,
+  agentPrices?: AgentPriceLine[] | null,
+): number {
+  return agentPriceFor(agentPrices, product.id) ?? unitPrice(product, qty);
+}
+
+/** Subtotal satu baris keranjang untuk pembeli dari tautan agen (v9). */
+export function lineSubtotalWithAgent(
+  product: Pick<Product, "id" | "price" | "tiers">,
+  qty: number,
+  agentPrices?: AgentPriceLine[] | null,
+): number {
+  return unitPriceWithAgent(product, qty, agentPrices) * qty;
+}
+
+/** Bersihkan daftar harga agen dari API/localStorage: id produk wajib,
+    harga bulat > 0, satu baris per produk (baris pertama menang). */
+export function cleanAgentPrices(raw: unknown): AgentPriceLine[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: AgentPriceLine[] = [];
+  for (const item of raw) {
+    const o = (item ?? {}) as Record<string, unknown>;
+    const productId = String(o.productId ?? o.product_id ?? "").trim();
+    const price = Math.round(Number(o.price ?? 0));
+    if (!productId || !Number.isFinite(price) || price <= 0) continue;
+    if (seen.has(productId)) continue;
+    seen.add(productId);
+    out.push({ productId, price });
+  }
+  return out;
 }
 
 /** Bersihkan daftar tier dari input admin/DB: minQty > 1, unik, harga > 0

@@ -40,6 +40,10 @@ yarn-error.log*
 /shots-new
 /server.log
 /.zcode/
+/.freebuff/
+
+# skrip uji sementara (dihapus setelah dipakai)
+scripts/.tmp-*
 
 # vercel
 .vercel

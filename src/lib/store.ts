@@ -7,7 +7,11 @@ import type { ShipOption, StoreSettings } from "./config";
 import { cloudMode, authHeaders } from "./auth";
 import { couponDiscount } from "./coupon";
 import { newOrderId } from "./format";
-import { lineSubtotal, unitPrice } from "./pricing";
+import {
+  cleanAgentPrices,
+  lineSubtotalWithAgent,
+  unitPriceWithAgent,
+} from "./pricing";
 import {
   DEFAULT_COMMISSION_SETTINGS,
   commissionBasis,
@@ -20,6 +24,8 @@ import {
 import type {
   Agent,
   AgentCommission,
+  AgentPrice,
+  AgentPriceLine,
   CommissionSettings,
   Customer,
 } from "./types";
@@ -44,6 +50,8 @@ const KEYS = {
   agents: "los_agents_v1",
   commissionSettings: "los_commission_v1",
   commissions: "los_commissions_v1",
+  // harga khusus agen (v9)
+  agentPrices: "los_agent_prices_v1",
 };
 const MY_ORDERS_KEY = "los_my_orders_v1";
 
@@ -319,8 +327,29 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     return { product, qty: i.qty };
   });
   const settings = readJSON<StoreSettings>(KEYS.settings, DEFAULT_SETTINGS);
-  // harga grosir (v6): subtotal & item memakai harga efektif per tier
-  const subtotal = lines.reduce((a, l) => a + lineSubtotal(l.product, l.qty), 0);
+
+  // ── kode agen + harga khusus agen (v6/v9) ──────────────────────
+  // cermin create_order: harga khusus agen dipakai HANYA bila agen aktif dan
+  // bukan pembelian sendiri, dan ditetapkan SEBELUM ongkir, voucher, komisi
+  const agentCode = normalizeAgentCode(draft.agentCode);
+  const agent = agentCode
+    ? readJSON<Agent[]>(KEYS.agents, EMPTY_AGENTS).find(
+        (a) => a.code === agentCode,
+      )
+    : undefined;
+  const agentPrices =
+    agent &&
+    agent.status === "aktif" &&
+    !isSelfPurchase(draft.customer.phone, agent.wa)
+      ? agentPriceLines(agentCode)
+      : EMPTY_AGENT_PRICE_LINES;
+
+  // harga grosir (v6) + harga khusus agen (v9): subtotal & item memakai
+  // harga efektif per tier, ditimpa harga agen bila ada
+  const subtotal = lines.reduce(
+    (a, l) => a + lineSubtotalWithAgent(l.product, l.qty, agentPrices),
+    0,
+  );
   const shipOption: ShipOption = draft.shipOption ?? "reguler";
   const shipping = hitungOngkir(settings, subtotal, shipOption);
 
@@ -339,48 +368,42 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
   }
 
   // ── komisi agen (v6) — cermin create_order di database ──────────
-  const agentCode = normalizeAgentCode(draft.agentCode);
   let agentCommission = 0;
   let commissionRow: AgentCommission | null = null;
-  if (agentCode) {
-    const agent = readJSON<Agent[]>(KEYS.agents, []).find(
-      (a) => a.code === agentCode,
+  if (agent) {
+    const cs = readJSON<CommissionSettings>(
+      KEYS.commissionSettings,
+      DEFAULT_COMMISSION_SETTINGS,
     );
-    if (agent) {
-      const cs = readJSON<CommissionSettings>(
-        KEYS.commissionSettings,
-        DEFAULT_COMMISSION_SETTINGS,
-      );
-      const basis = commissionBasis(subtotal, discount, cs.basis);
-      let percent = 0;
-      let note = "";
-      if (!cs.aktif) {
-        note = "program komisi sedang tidak aktif";
-      } else if (agent.status !== "aktif") {
-        note = "agen belum aktif";
-      } else if (isSelfPurchase(draft.customer.phone, agent.wa)) {
-        note = "pembelian sendiri — komisi 0";
-      } else if (basis < cs.minOrderAmount) {
-        note = "di bawah minimum belanja untuk komisi";
-      } else {
-        const r = commissionFor(basis, agent.commissionPercent, cs);
-        percent = r.percent;
-        agentCommission = r.amount;
-      }
-      commissionRow = {
-        id: Date.now(),
-        orderId: "", // diisi setelah id pesanan dibuat (di bawah)
-        agentCode,
-        basisAmount: basis,
-        percentUsed: percent,
-        amount: agentCommission,
-        overrideAmount: null,
-        status: agentCommission > 0 ? "pending" : "batal",
-        readyAt: null,
-        paidAt: null,
-        note,
-      };
+    const basis = commissionBasis(subtotal, discount, cs.basis);
+    let percent = 0;
+    let note = "";
+    if (!cs.aktif) {
+      note = "program komisi sedang tidak aktif";
+    } else if (agent.status !== "aktif") {
+      note = "agen belum aktif";
+    } else if (isSelfPurchase(draft.customer.phone, agent.wa)) {
+      note = "pembelian sendiri — komisi 0";
+    } else if (basis < cs.minOrderAmount) {
+      note = "di bawah minimum belanja untuk komisi";
+    } else {
+      const r = commissionFor(basis, agent.commissionPercent, cs);
+      percent = r.percent;
+      agentCommission = r.amount;
     }
+    commissionRow = {
+      id: Date.now(),
+      orderId: "", // diisi setelah id pesanan dibuat (di bawah)
+      agentCode,
+      basisAmount: basis,
+      percentUsed: percent,
+      amount: agentCommission,
+      overrideAmount: null,
+      status: agentCommission > 0 ? "pending" : "batal",
+      readyAt: null,
+      paidAt: null,
+      note,
+    };
   }
 
   const orderId = newOrderId();
@@ -396,7 +419,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     items: lines.map((l) => ({
       productId: l.product.id,
       name: l.product.name,
-      price: unitPrice(l.product, l.qty),
+      price: unitPriceWithAgent(l.product, l.qty, agentPrices),
       qty: l.qty,
       unit: l.product.unit,
       emoji: l.product.emoji,
@@ -408,8 +431,9 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     coupon,
     shipping,
     total: Math.max(0, subtotal - discount + shipping),
-    agentCode: agentCode || undefined,
-    agentCommission: agentCode ? agentCommission : undefined,
+    // atribusi hanya bila kode agen dikenal — sama dengan create_order
+    agentCode: agent ? agentCode : undefined,
+    agentCommission: agent ? agentCommission : undefined,
   };
   if (commissionRow) {
     commissionRow.orderId = orderId;
@@ -881,14 +905,21 @@ export async function listAgents(): Promise<Agent[]> {
   return readJSON<Agent[]>(KEYS.agents, EMPTY_AGENTS);
 }
 
-/** Tambah/perbarui agen. Code kosong → kode otomatis. */
-export async function upsertAgent(a: Agent): Promise<string> {
+/** Tambah/perbarui agen. Code kosong → kode otomatis.
+    `warning` diisi bila sebagian data (mis. mode komisi v9) belum bisa
+    tersimpan karena migrasi SQL belum dijalankan. */
+export async function upsertAgent(
+  a: Agent,
+): Promise<{ code: string; warning?: string }> {
   if (cloudMode) {
-    const res = await api<{ ok: boolean; code: string }>("/api/agents", {
-      method: "POST",
-      body: JSON.stringify(a),
-    });
-    return res.code;
+    const res = await api<{ ok: boolean; code: string; warning?: string }>(
+      "/api/agents",
+      {
+        method: "POST",
+        body: JSON.stringify(a),
+      },
+    );
+    return { code: res.code, warning: res.warning };
   }
   const code = normalizeAgentCode(a.code) || newAgentCode();
   const clean: Agent = {
@@ -906,7 +937,7 @@ export async function upsertAgent(a: Agent): Promise<string> {
     KEYS.agents,
     exists ? arr.map((x) => (x.code === code ? clean : x)) : [clean, ...arr],
   );
-  return code;
+  return { code };
 }
 
 export async function deleteAgent(code: string): Promise<void> {
@@ -946,6 +977,88 @@ export async function saveCommissionSettings(
     return;
   }
   writeJSON(KEYS.commissionSettings, s);
+}
+
+/* ── harga khusus agen per produk (v9; mode ganda) ────────────── */
+
+const EMPTY_AGENT_PRICES: AgentPrice[] = [];
+const EMPTY_AGENT_PRICE_LINES: AgentPriceLine[] = [];
+
+/** Semua baris harga agen (admin butuh untuk preload). */
+export async function listAgentPrices(): Promise<AgentPrice[]> {
+  if (cloudMode) return api<AgentPrice[]>("/api/agents/prices");
+  return readJSON<AgentPrice[]>(KEYS.agentPrices, EMPTY_AGENT_PRICES);
+}
+
+/** Harga khusus satu agen untuk ditampilkan ke pembeli (publik).
+    Dipakai keranjang/checkout & tombol "cek kode" agar angka yang dilihat
+    pembeli sama dengan tagihan `create_order`; server tetap otoritatif. */
+export async function fetchAgentPrices(
+  agentCode: string,
+): Promise<AgentPriceLine[]> {
+  const code = normalizeAgentCode(agentCode);
+  if (!code) return EMPTY_AGENT_PRICE_LINES;
+  if (cloudMode) {
+    try {
+      const rows = await api<AgentPriceLine[]>(
+        `/api/agents/prices?agent=${encodeURIComponent(code)}`,
+      );
+      return cleanAgentPrices(rows);
+    } catch {
+      return EMPTY_AGENT_PRICE_LINES;
+    }
+  }
+  return agentPriceLines(code);
+}
+
+/** Baris harga lokal satu agen (mode lokal) dalam bentuk ramping. */
+function agentPriceLines(agentCode: string): AgentPriceLine[] {
+  return readJSON<AgentPrice[]>(KEYS.agentPrices, EMPTY_AGENT_PRICES)
+    .filter((p) => p.agentCode === agentCode)
+    .map((p) => ({ productId: p.productId, price: p.price }));
+}
+
+/** Simpan / perbarui satu baris harga agen. */
+export async function upsertAgentPrice(p: AgentPrice): Promise<void> {
+  if (cloudMode) {
+    await api("/api/agents/prices", {
+      method: "POST",
+      body: JSON.stringify(p),
+    });
+    return;
+  }
+  const arr = readJSON<AgentPrice[]>(KEYS.agentPrices, EMPTY_AGENT_PRICES);
+  const idx = arr.findIndex(
+    (x) => x.agentCode === p.agentCode && x.productId === p.productId,
+  );
+  writeJSON(
+    KEYS.agentPrices,
+    idx >= 0
+      ? arr.map((x, i) => (i === idx ? p : x))
+      : [...arr, p],
+  );
+}
+
+/** Hapus satu baris harga agen (bila product kosong, hapus semua agen itu). */
+export async function deleteAgentPrice(
+  agentCode: string,
+  productId?: string,
+): Promise<void> {
+  if (cloudMode) {
+    const q = `?agent=${encodeURIComponent(agentCode)}` +
+      (productId ? `&product=${encodeURIComponent(productId)}` : "");
+    await api(`/api/agents/prices${q}`, { method: "DELETE" });
+    return;
+  }
+  const arr = readJSON<AgentPrice[]>(KEYS.agentPrices, EMPTY_AGENT_PRICES);
+  writeJSON(
+    KEYS.agentPrices,
+    productId
+      ? arr.filter(
+          (x) => !(x.agentCode === agentCode && x.productId === productId),
+        )
+      : arr.filter((x) => x.agentCode !== agentCode),
+  );
 }
 
 /** Ledger komisi terbaru (maks. 200 baris — sama seperti API). */
@@ -1009,18 +1122,26 @@ export async function overrideCommission(
 }
 
 /** Catat klik link referral + info agen untuk banner checkout.
-    Mode lokal membaca daftar localStorage; mode cloud lewat API. */
-export async function trackAgentRef(
-  code: string,
-): Promise<{ ok: boolean; nama?: string; linkDays?: number }> {
+    Mode lokal membaca daftar localStorage; mode cloud lewat API.
+    `prices` = harga khusus agen (v9) supaya pembeli melihat angka yang sama
+    dengan tagihan `create_order`. */
+export async function trackAgentRef(code: string): Promise<{
+  ok: boolean;
+  nama?: string;
+  linkDays?: number;
+  prices?: AgentPriceLine[];
+}> {
   const c = normalizeAgentCode(code);
   if (!c) return { ok: false };
   if (cloudMode) {
     try {
-      return await api<{ ok: boolean; nama?: string; linkDays?: number }>(
-        "/api/agents/click",
-        { method: "POST", body: JSON.stringify({ code: c }) },
-      );
+      const res = await api<{
+        ok: boolean;
+        nama?: string;
+        linkDays?: number;
+        prices?: AgentPriceLine[];
+      }>("/api/agents/click", { method: "POST", body: JSON.stringify({ code: c }) });
+      return { ...res, prices: cleanAgentPrices(res.prices) };
     } catch {
       return { ok: false };
     }
@@ -1037,7 +1158,12 @@ export async function trackAgentRef(
     KEYS.commissionSettings,
     DEFAULT_COMMISSION_SETTINGS,
   );
-  return { ok: true, nama: agent.nama, linkDays: cs.linkDays };
+  return {
+    ok: true,
+    nama: agent.nama,
+    linkDays: cs.linkDays,
+    prices: agentPriceLines(c),
+  };
 }
 
 /* ── kode referral dari link ?ref=KODE (v6) ─────────────────── */
@@ -1046,15 +1172,56 @@ export async function trackAgentRef(
    tanpa efek setState di halaman. */
 
 const REF_KEY = "los_agent_ref_v1";
+/* harga khusus agen (v9) milik kode referral yang tersimpan — dipisah agar
+   pembeli bisa menghitung harga tanpa memanggil API berkali-kali. */
+const REF_PRICES_KEY = "los_agent_ref_prices_v1";
 
-/** Simpan kode referral + masa berlaku (link_days). days <= 1 → tanpa batas. */
-export function storeAgentRef(code: string, days: number): void {
+/** cache harga referral — useSyncExternalStore membandingkan referensi
+    snapshot, jadi daftar hasil parse tidak boleh dibuat ulang tiap panggilan. */
+let refPricesCache: { key: string; list: AgentPriceLine[] } | null = null;
+
+/** Simpan kode referral + masa berlaku (link_days). days <= 1 → tanpa batas.
+    `prices` (v9) = harga khusus agen; `[]` berarti agen tidak punya harga
+    khusus, `undefined` = jangan ubah data harga yang sudah tersimpan. */
+export function storeAgentRef(
+  code: string,
+  days: number,
+  prices?: AgentPriceLine[],
+): void {
   if (typeof window === "undefined") return;
   const c = normalizeAgentCode(code);
   if (!c) return;
   const until = days > 1 ? Date.now() + days * 86400000 : 0; // 0 = tak kedaluwarsa
   localStorage.setItem(REF_KEY, JSON.stringify({ code: c, until }));
+  if (prices !== undefined) {
+    localStorage.setItem(
+      REF_PRICES_KEY,
+      JSON.stringify({ code: c, prices: cleanAgentPrices(prices) }),
+    );
+  }
   emit();
+}
+
+/** Harga khusus milik kode referral aktif; [] bila tidak ada / kode berbeda. */
+function readAgentRefPricesNow(): AgentPriceLine[] {
+  if (typeof window === "undefined") return EMPTY_AGENT_PRICE_LINES;
+  const ref = readAgentRefNow();
+  if (!ref) return EMPTY_AGENT_PRICE_LINES;
+  const raw = window.localStorage.getItem(REF_PRICES_KEY) ?? "";
+  // cache wajib: useSyncExternalStore membandingkan referensi snapshot
+  const cacheKey = `${ref}|${raw}`;
+  if (refPricesCache?.key === cacheKey) return refPricesCache.list;
+  let list: AgentPriceLine[] = EMPTY_AGENT_PRICE_LINES;
+  try {
+    const o = JSON.parse(raw) as { code?: string; prices?: unknown };
+    if (normalizeAgentCode(o.code ?? "") === ref) {
+      list = cleanAgentPrices(o.prices);
+    }
+  } catch {
+    list = EMPTY_AGENT_PRICE_LINES;
+  }
+  refPricesCache = { key: cacheKey, list };
+  return list;
 }
 
 function readAgentRefNow(): string | null {
@@ -1077,4 +1244,14 @@ function readAgentRefNow(): string | null {
 /** Kode agen tersimpan dari link referral (null di SSR / kosong / kedaluwarsa). */
 export function useAgentRef(): string | null {
   return useSyncExternalStore(subscribe, readAgentRefNow, () => null);
+}
+
+/** Harga khusus agen (v9) milik kode referral aktif — [] bila tidak ada.
+    Dipakai keranjang & checkout agar harga yang tampil sama dengan tagihan. */
+export function useAgentPrices(): AgentPriceLine[] {
+  return useSyncExternalStore(
+    subscribe,
+    readAgentRefPricesNow,
+    () => EMPTY_AGENT_PRICE_LINES,
+  );
 }

@@ -1,8 +1,8 @@
 import { hitungOngkir } from "./config";
 import type { StoreSettings } from "./config";
 import { formatRupiah } from "./format";
-import { lineSubtotal, unitPrice } from "./pricing";
-import type { Order, PaymentMethod, Product } from "./types";
+import { lineSubtotalWithAgent, unitPriceWithAgent } from "./pricing";
+import type { AgentPriceLine, Order, PaymentMethod, Product } from "./types";
 
 export interface WaDraft {
   lines: { product: Product; qty: number }[];
@@ -13,12 +13,17 @@ export interface WaDraft {
   shipOption?: "reguler" | "xpress";
   /** kode agen yang tercatat dari link referral (v6) */
   agentCode?: string;
+  /** harga khusus agen (v9) agar teks WA sama dengan tagihan `create_order` */
+  agentPrices?: AgentPriceLine[];
 }
 
 /** Susun teks pesanan siap kirim ke WhatsApp warung */
 export function buildOrderMessage(draft: WaDraft): string {
-  // harga grosir (v6): subtotal mengikuti harga efektif per jumlah
-  const subtotal = draft.lines.reduce((a, l) => a + lineSubtotal(l.product, l.qty), 0);
+  // harga grosir (v6) + harga khusus agen (v9): subtotal mengikuti harga efektif
+  const subtotal = draft.lines.reduce(
+    (a, l) => a + lineSubtotalWithAgent(l.product, l.qty, draft.agentPrices),
+    0,
+  );
   const shipping = hitungOngkir(
     draft.settings,
     subtotal,
@@ -34,7 +39,7 @@ export function buildOrderMessage(draft: WaDraft): string {
   draft.lines.forEach((l, i) => {
     lines.push(
       `${i + 1}. ${l.product.name} (${l.product.unit}) x${l.qty} — ${formatRupiah(
-        unitPrice(l.product, l.qty) * l.qty,
+        unitPriceWithAgent(l.product, l.qty, draft.agentPrices) * l.qty,
       )}`,
     );
   });

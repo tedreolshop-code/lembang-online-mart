@@ -2,22 +2,32 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCart, useCartLines } from "@/lib/cart";
 import {
   checkCoupon,
   createOrder,
+  fetchAgentPrices,
   saveCustomer,
+  useAgentPrices,
   useAgentRef,
   useSavedCustomer,
   useSettings,
 } from "@/lib/store";
 import { hitungOngkir, type ShipOption } from "@/lib/config";
 import { formatRupiah } from "@/lib/format";
-import { lineSubtotal, unitPrice } from "@/lib/pricing";
-import type { PaymentMethod } from "@/lib/types";
+import {
+  agentPriceFor,
+  lineSubtotalWithAgent,
+  unitPriceWithAgent,
+} from "@/lib/pricing";
+import { normalizeAgentCode } from "@/lib/agent";
+import type { AgentPriceLine, PaymentMethod } from "@/lib/types";
 import ProductImage from "@/components/ProductImage";
 import { CheckIcon, TruckIcon } from "@/components/Icons";
+
+/** referensi kosong yang stabil (useMemo/useSyncExternalStore butuh ini) */
+const NO_AGENT_PRICES: AgentPriceLine[] = [];
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -52,6 +62,41 @@ export default function CheckoutPage() {
   const agentRef = useAgentRef();
   const [agentTyped, setAgentTyped] = useState<string | null>(null);
   const agentInput = agentTyped ?? agentRef ?? "";
+  const agentInputCode = normalizeAgentCode(agentInput);
+
+  // harga khusus agen (v9): kode dari link sudah tersimpan di perangkat
+  // (hook), sedangkan kode yang diketik manual diambil dari server supaya
+  // harga yang terlihat sama dengan tagihan `create_order`
+  const refAgentPrices = useAgentPrices();
+  // harga hasil ketikan disimpan bersama kodenya — kode lama otomatis
+  // diabaikan saat pembeli berganti kode (tanpa setState di badan efek)
+  const [typed, setTyped] = useState<{
+    code: string;
+    prices: AgentPriceLine[];
+  } | null>(null);
+  useEffect(() => {
+    if (!agentInputCode || agentInputCode === agentRef) return;
+    let alive = true;
+    // jeda kecil: pembeli masih mengetik kodenya
+    const t = setTimeout(() => {
+      void fetchAgentPrices(agentInputCode).then((p) => {
+        if (alive) setTyped({ code: agentInputCode, prices: p });
+      });
+    }, 400);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [agentInputCode, agentRef]);
+  const agentPrices = useMemo(
+    () =>
+      agentInputCode && agentInputCode === agentRef
+        ? refAgentPrices
+        : typed?.code === agentInputCode
+          ? typed.prices
+          : NO_AGENT_PRICES,
+    [agentInputCode, agentRef, refAgentPrices, typed],
+  );
 
   // voucher — ternikat pada subtotal saat dipasang; ganti isi keranjang
   // = voucher otomatis lepas (dihitung saat render, tanpa efek)
@@ -60,10 +105,15 @@ export default function CheckoutPage() {
   const [voucherMsg, setVoucherMsg] = useState("");
   const [checkingVoucher, setCheckingVoucher] = useState(false);
 
-  // harga grosir (v6): subtotal memakai harga efektif per jumlah
+  // harga grosir (v6) + harga khusus agen (v9): subtotal memakai harga
+  // efektif per jumlah (ditimpa harga agen bila ada)
   const subtotal = useMemo(
-    () => lines.reduce((a, l) => a + lineSubtotal(l.product, l.qty), 0),
-    [lines],
+    () =>
+      lines.reduce(
+        (a, l) => a + lineSubtotalWithAgent(l.product, l.qty, agentPrices),
+        0,
+      ),
+    [lines, agentPrices],
   );
   const ongkir = hitungOngkir(settings, subtotal, shipOption);
   const voucherActive = applied !== null && applied.at === subtotal;
@@ -244,7 +294,9 @@ export default function CheckoutPage() {
             />
             <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
               Terisi otomatis bila kamu datang dari tautan referral agen.
-              Komisi dicatat untuk agen yang kodenya valid &amp; aktif.
+              Bila agennya punya harga khusus, harga itu langsung dipakai di
+              rincian pesanan. Komisi dicatat untuk agen yang kodenya valid
+              &amp; aktif.
             </span>
           </Field>
 
@@ -282,9 +334,16 @@ export default function CheckoutPage() {
         {/* ringkasan */}
         <div className="h-fit rounded-xl bg-white p-4 shadow-sm lg:sticky lg:top-32">
           <h2 className="font-extrabold text-slate-800">Pesananmu</h2>
+          {agentPrices.length > 0 && (
+            <p className="mt-2 rounded-lg bg-navy-soft px-3 py-2 text-xs leading-relaxed text-navy">
+              🏷️ <b>Harga khusus agen {agentInputCode}</b> sudah diterapkan —
+              total di bawah sudah memakai harga itu.
+            </p>
+          )}
           <ul className="mt-3 space-y-2 text-sm">
             {lines.map(({ product, qty }) => {
-              const harga = unitPrice(product, qty);
+              const harga = unitPriceWithAgent(product, qty, agentPrices);
+              const hargaAgen = agentPriceFor(agentPrices, product.id) != null;
               return (
               <li key={product.id} className="flex items-center gap-2">
                 <span className="block h-8 w-8 shrink-0 overflow-hidden rounded-md">
@@ -297,10 +356,16 @@ export default function CheckoutPage() {
                 <span className="flex-1 leading-tight text-slate-600">
                   {product.name}
                   <span className="text-slate-400"> ×{qty}</span>
-                  {harga < product.price && (
-                    <span className="ml-1 text-[10px] font-bold text-emerald-600">
-                      grosir
+                  {hargaAgen ? (
+                    <span className="ml-1 text-[10px] font-bold text-navy">
+                      harga agen
                     </span>
+                  ) : (
+                    harga < product.price && (
+                      <span className="ml-1 text-[10px] font-bold text-emerald-600">
+                        grosir
+                      </span>
+                    )
                   )}
                 </span>
                 <span className="font-semibold text-slate-700">

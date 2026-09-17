@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon, listAgents, upsertAgent, deleteAgent, getCommissionSettings, saveCommissionSettings, listCommissions, commissionAction, overrideCommission } from "@/lib/store";
+import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon, listAgents, upsertAgent, deleteAgent, getCommissionSettings, saveCommissionSettings, listCommissions, commissionAction, overrideCommission, listAgentPrices, upsertAgentPrice, deleteAgentPrice } from "@/lib/store";
 import { printOrderStruk } from "@/lib/printStruk";
 import { cloudMode, adminLogin, adminLogout, hasAdminSession, localLogin, authHeaders } from "@/lib/auth";
 import { DEFAULT_SETTINGS, formatWaDigits, type StoreSettings } from "@/lib/config";
@@ -10,7 +10,7 @@ import { formatRupiah, formatDateTime } from "@/lib/format";
 import { agentShareLink, DEFAULT_COMMISSION_SETTINGS, effectiveCommission, isCommissionReady } from "@/lib/agent";
 import { normalizeTiers } from "@/lib/pricing";
 import { CATEGORIES } from "@/data/seed";
-import type { Agent, AgentCommission, CommissionSettings, Coupon, Order, OrderStatus, PriceTier, Product } from "@/lib/types";
+import type { Agent, AgentCommission, AgentPrice, CommissionSettings, Coupon, Order, OrderStatus, PriceTier, Product } from "@/lib/types";
 import { BagIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from "@/components/Icons";
 import Logo from "@/components/Logo";
 import { applyThemeVars, clearThemeVars } from "@/components/ThemeStyle";
@@ -351,12 +351,13 @@ const SETUP_STEPS: {
   {
     icon: "🤝",
     title: "5. Aturan Komisi Agen (Opsional)",
-    desc: "Jika ada agen reseller, atur persentase komisi di tab Agen. Nantinya setiap pendaftaran agen baru akan muncul dengan status pending — approve untuk aktifkan.",
+    desc: "Jika ada agen reseller, atur persentase komisi di tab Agen. Nantinya setiap pendaftaran agen baru akan muncul dengan status pending — approve untuk aktifkan. Untuk agen yang untungnya dari selisih harga, pilih mode 'Harga khusus agen' lalu isi harganya per produk.",
     action: { label: "Buka Agen", tab: "agen" },
     checklist: [
       "Set persentase komisi default",
       "Isi ketentuan komisi",
       "Approve agen yang mendaftar",
+      "Isi 🏷️ Harga Khusus Agen bila pakai mode harga",
     ],
   },
 ];
@@ -1788,19 +1789,137 @@ const EMPTY_AGENT_FORM = {
   alamat: "",
   payMethod: "ewallet" as Agent["payMethod"],
   payTarget: "",
+  commissionMode: "percent" as NonNullable<Agent["commissionMode"]>,
   commissionPercent: "",
   status: "pending" as Agent["status"],
 };
 
+/* ── baris editor harga khusus agen per produk (v9) ──────────── */
+
+function AgentPriceRow({
+  product,
+  currentPrice,
+  onSave,
+  onDelete,
+}: {
+  product: Product;
+  currentPrice?: number;
+  onSave: (price: number) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const [val, setVal] = useState(
+    currentPrice != null ? String(currentPrice) : "",
+  );
+  const [busy, setBusy] = useState(false);
+
+  const num = Math.round(Number(val));
+  const changed = num > 0 && num !== currentPrice;
+  const belowCost =
+    product.costPrice != null &&
+    product.costPrice > 0 &&
+    num > 0 &&
+    num < product.costPrice;
+
+  const save = async () => {
+    if (!changed || busy) return;
+    setBusy(true);
+    try {
+      await onSave(num);
+      setVal(String(num));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Gagal menyimpan harga agen.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onDelete();
+      setVal("");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Gagal menghapus harga agen.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <tr>
+      <td className="px-3 py-2">
+        <span className="mr-1.5">{product.emoji}</span>
+        <span className="font-semibold text-slate-700">{product.name}</span>
+        <span className="ml-1.5 text-[11px] text-slate-400">{product.unit}</span>
+      </td>
+      <td className="hidden px-3 py-2 text-xs text-slate-500 sm:table-cell">
+        {formatRupiah(product.price)}
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="number"
+          min={0}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+          placeholder="cth: 45000"
+          className={`input max-w-36 py-1.5 text-sm ${
+            belowCost ? "border-red-400" : ""
+          }`}
+          aria-label={`Harga agen untuk ${product.name}`}
+        />
+        {belowCost && product.costPrice != null && product.costPrice > 0 && (
+          <span className="ml-1.5 text-[10px] font-bold text-red-500">
+            ⚠ di bawah HPP {formatRupiah(product.costPrice)}
+          </span>
+        )}
+        {currentPrice != null && num > 0 && num !== currentPrice && (
+          <span className="ml-1.5 text-[10px] text-slate-400">
+            ganti dari {formatRupiah(currentPrice)}
+          </span>
+        )}
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={save}
+            disabled={!changed || busy}
+            className="rounded-lg bg-brand px-2.5 py-1 text-xs font-bold text-white transition hover:bg-brand-dark disabled:opacity-40"
+          >
+            {busy ? "…" : "Simpan"}
+          </button>
+          {currentPrice != null && (
+            <button
+              type="button"
+              onClick={remove}
+              disabled={busy}
+              className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold text-slate-400 transition hover:border-red-300 hover:text-red-500 disabled:opacity-40"
+            >
+              Hapus
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function AgenTab() {
   const [agents, setAgents] = useState<Agent[] | null>(null);
   const [commissions, setCommissions] = useState<AgentCommission[] | null>(null);
+  const [agentPrices, setAgentPrices] = useState<AgentPrice[] | null>(null);
   const [settings, setSettings] = useState<CommissionSettings>(DEFAULT_COMMISSION_SETTINGS);
   const [err, setErr] = useState("");
+  const [priceErr, setPriceErr] = useState("");
   const [msg, setMsg] = useState("");
   const [now, setNow] = useState(0);
   const [form, setForm] = useState(EMPTY_AGENT_FORM);
   const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [priceAgent, setPriceAgent] = useState<string | null>(null);
+
+  const products = useProducts();
 
   const flash = (t: string) => {
     setMsg(t);
@@ -1815,10 +1934,26 @@ function AgenTab() {
         setSettings(s);
         setNow(Date.now());
         setErr("");
+        // harga khusus agen (v9) dimuat terpisah: bila alter-v9.sql belum
+        // dijalankan, tabelnya belum ada — kelola agen tetap harus jalan
+        return listAgentPrices()
+          .then((ap) => {
+            setAgentPrices(ap);
+            setPriceErr("");
+          })
+          .catch((e: unknown) => {
+            setAgentPrices([]);
+            setPriceErr(
+              e instanceof Error
+                ? e.message
+                : "Harga khusus agen belum bisa dimuat.",
+            );
+          });
       })
       .catch((e: unknown) => {
         setAgents([]);
         setCommissions([]);
+        setAgentPrices([]);
         setErr(e instanceof Error ? e.message : "Gagal memuat data agen.");
       });
   useEffect(() => {
@@ -1846,21 +1981,28 @@ function AgenTab() {
   const submitAgen = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const code = await upsertAgent({
+      const { code, warning } = await upsertAgent({
         code: form.code,
         nama: form.nama.trim(),
         wa: formatWaDigits(form.wa),
         alamat: form.alamat.trim(),
         payMethod: form.payMethod,
         payTarget: form.payTarget.trim(),
+        commissionMode: form.commissionMode,
         commissionPercent:
-          form.commissionPercent.trim() === ""
-            ? null
-            : Math.round(Number(form.commissionPercent)),
+          form.commissionMode === "percent" &&
+          form.commissionPercent.trim() !== ""
+            ? Math.round(Number(form.commissionPercent))
+            : null,
         status: form.status,
         totalKlik: agents?.find((a) => a.code === form.code)?.totalKlik ?? 0,
       });
-      flash(`Agen tersimpan. Kode: ${code} — bagikan tautan referral-nya.`);
+      flash(
+        warning ??
+          (form.commissionMode === "price"
+            ? `Agen tersimpan (${code}). Atur harga khususnya di bagian "Harga Khusus Agen" di bawah.`
+            : `Agen tersimpan. Kode: ${code} — bagikan tautan referral-nya.`),
+      );
       setForm(EMPTY_AGENT_FORM);
       setEditingCode(null);
       load();
@@ -1877,6 +2019,7 @@ function AgenTab() {
       alamat: a.alamat,
       payMethod: a.payMethod,
       payTarget: a.payTarget,
+      commissionMode: a.commissionMode ?? "percent",
       commissionPercent: a.commissionPercent == null ? "" : String(a.commissionPercent),
       status: a.status,
     });
@@ -2166,17 +2309,44 @@ function AgenTab() {
           />
         </label>
         <label className="block">
-          <span className="form-label">Komisi khusus % (kosong = ikut aturan)</span>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={form.commissionPercent}
-            onChange={(e) => set({ commissionPercent: e.target.value })}
-            placeholder="mis. 10"
+          <span className="form-label">Mode Komisi</span>
+          <select
+            value={form.commissionMode}
+            onChange={(e) =>
+              set({
+                commissionMode: e.target.value as NonNullable<
+                  Agent["commissionMode"]
+                >,
+              })
+            }
             className="input"
-          />
+          >
+            <option value="percent">Komisi persen (%)</option>
+            <option value="price">Harga khusus agen</option>
+          </select>
         </label>
+        {form.commissionMode === "price" ? (
+          <p className="self-end rounded-lg bg-brand-soft px-3 py-2 text-xs leading-relaxed text-slate-600">
+            Keuntungan agen dari <b>selisih harga khusus</b> — tidak pakai
+            komisi persen. Harga wajib diisi per produk di bagian{" "}
+            <b>🏷️ Harga Khusus Agen</b> setelah agen tersimpan.
+          </p>
+        ) : (
+          <label className="block">
+            <span className="form-label">
+              Komisi khusus % (kosong = ikut aturan)
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={form.commissionPercent}
+              onChange={(e) => set({ commissionPercent: e.target.value })}
+              placeholder="mis. 10"
+              className="input"
+            />
+          </label>
+        )}
         <div className="flex items-end gap-2">
           <button
             type="submit"
@@ -2222,7 +2392,10 @@ function AgenTab() {
                 </span>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {a.wa}
-                  {a.commissionPercent != null && ` · komisi khusus ${a.commissionPercent}%`}
+                  {a.commissionMode === "price"
+                    ? ` · harga khusus (${(agentPrices ?? []).filter((x) => x.agentCode === a.code).length} produk)`
+                    : a.commissionPercent != null &&
+                      ` · komisi khusus ${a.commissionPercent}%`}
                   {a.payTarget && ` · ${a.payMethod}: ${a.payTarget}`}
                   {` · ${a.totalKlik} klik`}
                 </p>
@@ -2246,6 +2419,15 @@ function AgenTab() {
                 >
                   🔗 Tautan
                 </button>
+                {a.status === "aktif" && (
+                  <button
+                    type="button"
+                    onClick={() => setPriceAgent(a.code)}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:border-brand/40 hover:text-brand"
+                  >
+                    🏷️ Harga
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => editAgen(a)}
@@ -2284,6 +2466,96 @@ function AgenTab() {
           ))}
         </div>
       )}
+
+      {/* ── harga khusus agen (v9) ── */}
+      <div className="rounded-xl bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-extrabold text-slate-800">🏷️ Harga Khusus Agen</h3>
+          <select
+            value={priceAgent ?? ""}
+            onChange={(e) => setPriceAgent(e.target.value || null)}
+            className="input max-w-60"
+          >
+            <option value="">— Pilih agen —</option>
+            {(agents ?? []).filter((a) => a.status === "aktif").map((a) => (
+              <option key={a.code} value={a.code}>
+                {a.nama} ({a.code})
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="mt-1.5 text-xs text-slate-400">
+          Atur harga jual khusus per produk untuk agen terpilih. Pembeli yang
+          datang dari referral agen akan dapat harga ini (menimpa harga normal
+          &amp; grosir). Kosongkan = ikut harga normal.
+        </p>
+        {priceErr && (
+          <div className="mt-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-700">
+            ⚠️ {priceErr}
+          </div>
+        )}
+        {priceAgent &&
+          (agents ?? []).find((a) => a.code === priceAgent)
+            ?.commissionMode === "price" &&
+          (agentPrices ?? []).filter((x) => x.agentCode === priceAgent)
+            .length === 0 && (
+            <div className="mt-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-700">
+              ⚠️ Agen ini memakai mode <b>Harga Khusus</b> tapi belum ada satu
+              pun harga yang diisi. Isi harga di bawah — tanpa harga, pembeli
+              referral tetap bayar harga normal dan agen tidak dapat keuntungan.
+            </div>
+          )}
+
+        {priceAgent && (
+          <div className="mt-3 overflow-hidden rounded-lg border border-slate-100">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-3 py-2">Produk</th>
+                  <th className="px-3 py-2">Harga Normal</th>
+                  <th className="px-3 py-2">Harga Agen</th>
+                  <th className="px-3 py-2 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {products.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-center text-xs italic text-slate-400">
+                      Belum ada produk — tambahkan produk dulu di tab Produk.
+                    </td>
+                  </tr>
+                )}
+                {products.map((p) => {
+                  const ap = (agentPrices ?? []).find(
+                    (x) => x.agentCode === priceAgent && x.productId === p.id,
+                  );
+                  return (
+                    <AgentPriceRow
+                      key={p.id}
+                      product={p}
+                      currentPrice={ap?.price}
+                      onSave={async (price) => {
+                        await upsertAgentPrice({
+                          agentCode: priceAgent,
+                          productId: p.id,
+                          price,
+                        });
+                        flash(`Harga agen untuk ${p.name} disimpan.`);
+                        load();
+                      }}
+                      onDelete={async () => {
+                        await deleteAgentPrice(priceAgent, p.id);
+                        flash(`Harga khusus ${p.name} dihapus — kembali ke harga normal.`);
+                        load();
+                      }}
+                    />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* ── ledger komisi ── */}
       <div className="rounded-xl bg-white p-4 shadow-sm">

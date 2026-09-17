@@ -1,8 +1,14 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
-import { normalizeAgentCode, rowToCommissionSettings } from "@/lib/agent";
+import {
+  normalizeAgentCode,
+  rowToAgentPrice,
+  rowToCommissionSettings,
+} from "@/lib/agent";
 
 /** POST (publik): pembeli membuka link referral agen → catat klik +
-    kembalikan info singkat untuk banner "Ditujuk oleh …".
+    kembalikan info singkat untuk banner "Ditujuk oleh …" beserta harga
+    khusus agen (v9) agar keranjang/checkout memakai angka yang sama dengan
+    tagihan `create_order`.
     Data pribadi agen (rekening dsb.) TIDAK pernah dikirim ke sini. */
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
@@ -26,6 +32,14 @@ export async function POST(req: Request) {
     .eq("code", code)
     .then(() => {}, () => {});
 
+  // harga khusus (v9) — best-effort: tabelnya mungkin belum dimigrasi, dan
+  // tanpa harga khusus pembeli tetap memakai harga normal/grosir
+  const { data: prices } = await db()
+    .from("agent_prices")
+    .select("agent_code,product_id,price")
+    .eq("agent_code", code)
+    .order("product_id", { ascending: true });
+
   const { data: cs } = await db()
     .from("commission_settings")
     .select("link_days")
@@ -35,5 +49,9 @@ export async function POST(req: Request) {
     ok: true,
     nama: agent.nama,
     linkDays: rowToCommissionSettings(cs ?? null).linkDays,
+    prices: (prices ?? []).map((r) => {
+      const p = rowToAgentPrice(r);
+      return { productId: p.productId, price: p.price };
+    }),
   });
 }

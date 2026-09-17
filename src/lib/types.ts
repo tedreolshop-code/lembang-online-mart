@@ -140,11 +140,27 @@ export interface Agent {
   payTarget: string;
   /** komisi khusus agen ini; null = ikut aturan global */
   commissionPercent: number | null;
+  /** mode komisi: "percent" = persen (default), "price" = harga khusus agen */
+  commissionMode?: "percent" | "price";
   status: "pending" | "aktif" | "nonaktif";
   totalKlik: number;
   /** email opsional untuk notifikasi agen (v8) */
   email?: string;
   createdAt?: string;
+}
+
+/** Satu baris harga: produk + harganya. Bentuk yang dipakai perhitungan
+    harga di keranjang/checkout (tanpa identitas agen). */
+export interface AgentPriceLine {
+  productId: string;
+  price: number;
+}
+
+/** Harga khusus agen per produk (v9) + pemiliknya. Bila agen punya baris di
+    sini, harga jual ke pembeli lewat referral agen memakai harga ini
+    (menimpa harga normal & grosir). */
+export interface AgentPrice extends AgentPriceLine {
+  agentCode: string;
 }
 
 /** Pelanggan — identitas utama No. WhatsApp (bukan email).

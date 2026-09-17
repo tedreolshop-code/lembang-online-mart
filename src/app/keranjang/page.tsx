@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { useCart, useCartLines } from "@/lib/cart";
 import { hitungOngkir } from "@/lib/config";
-import { useAgentRef, useSettings } from "@/lib/store";
+import { useAgentPrices, useAgentRef, useSettings } from "@/lib/store";
 import { formatRupiah } from "@/lib/format";
-import { lineSubtotal, unitPrice } from "@/lib/pricing";
+import {
+  agentPriceFor,
+  lineSubtotalWithAgent,
+  unitPriceWithAgent,
+} from "@/lib/pricing";
 import { buildOrderMessage, waLink } from "@/lib/whatsapp";
 import QtySelector from "@/components/QtySelector";
 import ProductImage from "@/components/ProductImage";
@@ -17,9 +21,15 @@ export default function KeranjangPage() {
   const settings = useSettings();
   // kode referral tersimpan (v6) — reaktif lewat pub-sub store, SSR aman
   const agentRef = useAgentRef();
+  // harga khusus agen milik kode referral (v9) — [] bila tidak ada
+  const agentPrices = useAgentPrices();
 
-  // harga grosir (v6): tiap baris memakai harga efektif sesuai jumlahnya
-  const subtotal = lines.reduce((a, l) => a + lineSubtotal(l.product, l.qty), 0);
+  // harga grosir (v6) + harga khusus agen (v9): tiap baris memakai harga
+  // efektif sesuai jumlahnya, ditimpa harga agen bila ada
+  const subtotal = lines.reduce(
+    (a, l) => a + lineSubtotalWithAgent(l.product, l.qty, agentPrices),
+    0,
+  );
   const ongkir = hitungOngkir(settings, subtotal);
   const total = subtotal + ongkir;
   const kurangGratis = Math.max(0, settings.freeOngkirMin - subtotal);
@@ -54,8 +64,9 @@ export default function KeranjangPage() {
         {/* daftar barang */}
         <div className="space-y-3">
           {lines.map(({ product, qty }) => {
-            const harga = unitPrice(product, qty);
-            const grosir = harga < product.price;
+            const harga = unitPriceWithAgent(product, qty, agentPrices);
+            const hargaAgen = agentPriceFor(agentPrices, product.id) != null;
+            const grosir = !hargaAgen && harga < product.price;
             return (
             <div
               key={product.id}
@@ -90,10 +101,16 @@ export default function KeranjangPage() {
                 </div>
                 <span className="text-xs text-slate-400">
                   {product.unit}
-                  {grosir && (
-                    <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
-                      harga grosir {formatRupiah(harga)}
+                  {hargaAgen ? (
+                    <span className="ml-1.5 rounded bg-navy-soft px-1.5 py-0.5 text-[10px] font-bold text-navy">
+                      harga agen {formatRupiah(harga)}
                     </span>
+                  ) : (
+                    grosir && (
+                      <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                        harga grosir {formatRupiah(harga)}
+                      </span>
+                    )
                   )}
                 </span>
                 <div className="mt-auto flex items-center justify-between pt-2">
@@ -115,6 +132,16 @@ export default function KeranjangPage() {
         {/* ringkasan */}
         <div className="h-fit rounded-xl bg-white p-4 shadow-sm lg:sticky lg:top-32">
           <h2 className="font-extrabold text-slate-800">Ringkasan Belanja</h2>
+
+          {agentPrices.length > 0 && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-navy-soft p-2.5 text-xs text-navy">
+              <span>🏷️</span>
+              <span>
+                <b>Harga khusus agen {agentRef}</b> sudah diterapkan pada
+                barang di keranjang ini.
+              </span>
+            </div>
+          )}
 
           {kurangGratis > 0 ? (
             <div className="mt-3 flex items-start gap-2 rounded-lg bg-navy-soft p-2.5 text-xs text-navy">
@@ -179,6 +206,7 @@ export default function KeranjangPage() {
                 customer: undefined,
                 payment: undefined,
                 agentCode: agentRef ?? undefined,
+                agentPrices,
               }),
               settings.whatsapp,
             )}

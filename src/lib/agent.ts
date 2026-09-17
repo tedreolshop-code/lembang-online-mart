@@ -2,6 +2,7 @@ import { formatWaDigits } from "./config";
 import type {
   Agent,
   AgentCommission,
+  AgentPrice,
   CommissionSettings,
   CommissionStatus,
 } from "./types";
@@ -142,6 +143,8 @@ export function rowToAgent(r: {
   pay_method?: string | null;
   pay_target?: string | null;
   commission_percent?: number | null;
+  /** mode komisi (v9): murni penanda UI — perhitungan tetap di create_order */
+  commission_mode?: string | null;
   status?: string | null;
   total_klik?: number | null;
   created_at?: string | null;
@@ -155,10 +158,25 @@ export function rowToAgent(r: {
     payTarget: r.pay_target ?? "",
     commissionPercent:
       r.commission_percent == null ? null : Number(r.commission_percent),
+    commissionMode: r.commission_mode === "price" ? "price" : "percent",
     status:
       r.status === "aktif" || r.status === "nonaktif" ? r.status : "pending",
     totalKlik: Number(r.total_klik ?? 0),
     createdAt: r.created_at ?? undefined,
+  };
+}
+
+/** Baris DB `agent_prices` (v9) → AgentPrice (kode agen ikut dibawa agar
+    admin bisa menampilkan harga per agen). */
+export function rowToAgentPrice(r: {
+  agent_code: string;
+  product_id: string;
+  price: number;
+}): AgentPrice {
+  return {
+    agentCode: normalizeAgentCode(r.agent_code),
+    productId: r.product_id,
+    price: Number(r.price),
   };
 }
 

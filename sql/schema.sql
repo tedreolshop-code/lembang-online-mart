@@ -170,6 +170,10 @@ create table if not exists agents (
   pay_target         text not null default '',
   commission_percent int check (commission_percent is null
                                 or (commission_percent between 1 and 20)),
+  -- mode komisi (v9): 'percent' = komisi persen, 'price' = untung dari
+  -- selisih harga khusus agen. Penanda tampilan admin saja.
+  commission_mode    text not null default 'percent'
+                       check (commission_mode in ('percent','price')),
   status             text not null default 'pending'
                        check (status in ('pending','aktif','nonaktif')),
   total_klik         int not null default 0,
@@ -200,9 +204,26 @@ create table if not exists agent_commissions (
 create index if not exists agent_commissions_agent_idx
   on agent_commissions (agent_code, status);
 
+-- ── harga khusus agen per produk (v9) ──────────────────────────────
+-- Bila agen aktif punya baris di sini, pembeli yang datang dari tautan
+-- agen itu membayar harga ini (menimpa harga normal & grosir). Tanpa baris
+-- untuk produknya → harga normal/grosir seperti biasa.
+-- Tabel dikunci RLS: hanya service key (API) yang membacanya; pembeli
+-- menerima angkanya lewat API (kode agennya sendiri), bukan dari DB langsung.
+create table if not exists agent_prices (
+  agent_code  text not null references agents(code) on delete cascade,
+  product_id  text not null references products(id) on delete cascade,
+  price       int  not null check (price > 0),
+  updated_at  timestamptz not null default now(),
+  primary key (agent_code, product_id)
+);
+alter table agent_prices enable row level security;
+
 -- ── fungsi transaksi: buat pesanan + kurangi stok atomik ─────
 -- Mengembalikan total pesanan. Melempar error bila stok kurang
 -- (diterjemahkan API menjadi HTTP 409).
+-- v9: pembeli dari tautan agen aktif (bukan pembelian sendiri) memakai
+-- harga `agent_prices` bila ada — menimpa harga normal & grosir.
 create or replace function create_order(
   p_id       text,
   p_channel  text,
@@ -218,10 +239,12 @@ create or replace function create_order(
 declare
   v_item     jsonb;
   v_lines    jsonb := '[]'::jsonb;   -- item + harga efektif (termasuk grosir)
+  v_adj      jsonb := '[]'::jsonb;   -- v_lines setelah harga agen ditimpa
   v_product  products%rowtype;
   v_qty      int;
   v_price    int;
   v_tier     int;
+  v_aprice   int;
   v_subtotal int := 0;
   v_total    int;
   v_agent    agents%rowtype;
@@ -238,7 +261,8 @@ begin
     raise exception 'kode pesanan sudah terpakai';
   end if;
 
-  -- validasi stok & hitung subtotal dari harga di DB (harga grosir ikut)
+  -- validasi stok & susun baris pesanan dari harga di DB (harga grosir ikut);
+  -- subtotal dihitung setelah harga khusus agen (v9) diterapkan
   for v_item in select * from jsonb_array_elements(p_items) loop
     select * into v_product from products
       where id = v_item->>'productId' for update;
@@ -260,17 +284,13 @@ begin
       v_price := v_tier;
     end if;
 
-    v_subtotal := v_subtotal + v_price * v_qty;
     v_lines := v_lines || jsonb_build_object(
       'productId', v_product.id, 'qty', v_qty, 'price', v_price);
   end loop;
 
-  v_total := greatest(
-    0,
-    v_subtotal + coalesce(p_shipping, 0) - coalesce(p_discount, 0)
-  );
-
-  -- ── komisi agen: dihitung SEKALI di sini lalu disimpan (snapshot) ──
+  -- ── (v9) harga khusus agen: berlaku bila agen aktif & bukan pembelian
+  -- sendiri. Harga ditimpa di v_lines supaya subtotal, order_items, dan
+  -- komisi semuanya memakai angka yang benar-benar ditagih.
   v_code := nullif(upper(regexp_replace(coalesce(p_agent_code, ''),
                                         '[^A-Za-z0-9]', '', 'g')), '');
   if v_code is not null then
@@ -283,37 +303,69 @@ begin
       v_agenwa := regexp_replace(coalesce(v_agent.wa, ''), '[^0-9]', '', 'g');
       if v_agenwa like '0%' then v_agenwa := '62' || substring(v_agenwa from 2); end if;
 
-      select * into v_cs from commission_settings where id = 1;
-      if not coalesce(v_cs.aktif, false) then
-        v_note := 'program komisi sedang tidak aktif';
-      elsif v_agent.status <> 'aktif' then
-        v_note := 'agen belum aktif';
-      elsif v_phone <> '' and v_phone = v_agenwa then
-        v_note := 'pembelian sendiri — komisi 0';
-      else
-        v_basis := case when v_cs.basis = 'subtotal'
-                        then v_subtotal
-                        else greatest(0, v_subtotal - coalesce(p_discount, 0)) end;
-        if v_basis < v_cs.min_order_amount then
-          v_note := 'di bawah minimum belanja untuk komisi';
-        elsif v_agent.commission_percent is not null then
-          v_pct := v_agent.commission_percent;      -- komisi khusus agen ini
-          v_komisi := round(v_basis * v_pct / 100.0 / 100) * 100;
-        elsif v_cs.kind = 'percent' then
-          v_pct := v_cs.value;
-          v_komisi := round(v_basis * v_pct / 100.0 / 100) * 100;
-        else
-          v_komisi := v_cs.value;                   -- nominal tetap per pesanan
-        end if;
-        if v_cs.min_amount > 0 and v_komisi < v_cs.min_amount then
-          v_komisi := v_cs.min_amount;
-        end if;
-        if v_cs.max_amount > 0 and v_komisi > v_cs.max_amount then
-          v_komisi := v_cs.max_amount;
-        end if;
+      if v_agent.status = 'aktif'
+         and not (v_phone <> '' and v_phone = v_agenwa) then
+        v_adj := '[]'::jsonb;
+        for v_item in select * from jsonb_array_elements(v_lines) loop
+          v_aprice := null;
+          select ap.price into v_aprice
+            from agent_prices ap
+            where ap.agent_code = v_code
+              and ap.product_id = v_item->>'productId';
+          if v_aprice is not null and v_aprice > 0 then
+            v_item := jsonb_set(v_item, '{price}', to_jsonb(v_aprice));
+          end if;
+          v_adj := v_adj || v_item;
+        end loop;
+        v_lines := v_adj;             -- harga final agen (menimpa normal/grosir)
       end if;
     end if;
   end if;
+
+  -- subtotal dihitung dari harga yang benar-benar ditagih
+  v_subtotal := 0;
+  for v_item in select * from jsonb_array_elements(v_lines) loop
+    v_subtotal := v_subtotal + (v_item->>'price')::int * (v_item->>'qty')::int;
+  end loop;
+
+  -- ── komisi agen: dihitung SEKALI di sini lalu disimpan (snapshot) ──
+  if v_code is not null then
+    select * into v_cs from commission_settings where id = 1;
+    if not coalesce(v_cs.aktif, false) then
+      v_note := 'program komisi sedang tidak aktif';
+    elsif v_agent.status <> 'aktif' then
+      v_note := 'agen belum aktif';
+    elsif v_phone <> '' and v_phone = v_agenwa then
+      v_note := 'pembelian sendiri — komisi 0';
+    else
+      v_basis := case when v_cs.basis = 'subtotal'
+                      then v_subtotal
+                      else greatest(0, v_subtotal - coalesce(p_discount, 0)) end;
+      if v_basis < v_cs.min_order_amount then
+        v_note := 'di bawah minimum belanja untuk komisi';
+      elsif v_agent.commission_percent is not null then
+        v_pct := v_agent.commission_percent;      -- komisi khusus agen ini
+        v_komisi := round(v_basis * v_pct / 100.0 / 100) * 100;
+      elsif v_cs.kind = 'percent' then
+        v_pct := v_cs.value;
+        v_komisi := round(v_basis * v_pct / 100.0 / 100) * 100;
+      else
+        v_komisi := v_cs.value;                   -- nominal tetap per pesanan
+      end if;
+      if v_cs.min_amount > 0 and v_komisi < v_cs.min_amount then
+        v_komisi := v_cs.min_amount;
+      end if;
+      if v_cs.max_amount > 0 and v_komisi > v_cs.max_amount then
+        v_komisi := v_cs.max_amount;
+      end if;
+    end if;
+  end if;
+
+  -- total dihitung SETELAH harga khusus agen (v9) ikut diperhitungkan
+  v_total := greatest(
+    0,
+    v_subtotal + coalesce(p_shipping, 0) - coalesce(p_discount, 0)
+  );
 
   insert into orders (id, channel, status, stock_applied,
                       customer_name, customer_phone, customer_address,

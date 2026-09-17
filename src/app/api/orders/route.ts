@@ -1,9 +1,10 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { rowToOrder, rowToSettings } from "@/lib/rows";
 import { couponDiscount, rowToCoupon } from "@/lib/coupon";
-import { unitPrice } from "@/lib/pricing";
+import { unitPriceWithAgent } from "@/lib/pricing";
+import type { AgentPriceLine } from "@/lib/types";
 import { tiersForProducts } from "@/lib/product-tiers";
-import { normalizeAgentCode } from "@/lib/agent";
+import { normalizeAgentCode, normalizeWa } from "@/lib/agent";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { newOrderId } from "@/lib/format";
 import { sendOrderNotification } from "@/lib/notify";
@@ -75,13 +76,38 @@ export async function POST(req: Request) {
       );
     }
   }
+  const agentCode = normalizeAgentCode(body.agentCode);
+  // harga khusus agen (v9): pembeli dari tautan agen membayar harga ini, dan
+  // pratinjau server (ongkir & voucher) harus memakai angka yang sama dengan
+  // create_order. Data diambil dari DB — client tidak dipercaya.
+  let agentPrices: AgentPriceLine[] = [];
+  if (agentCode) {
+    const { data: arow } = await db()
+      .from("agents")
+      .select("code, wa, status")
+      .eq("code", agentCode)
+      .maybeSingle();
+    const selfPurchase =
+      arow != null && normalizeWa(c.phone) === normalizeWa(arow.wa);
+    if (arow && arow.status === "aktif" && !selfPurchase) {
+      const { data: prow } = await db()
+        .from("agent_prices")
+        .select("product_id, price")
+        .eq("agent_code", agentCode);
+      agentPrices = (prow ?? []).map((r) => ({
+        productId: r.product_id as string,
+        price: Number(r.price),
+      }));
+    }
+  }
+
   const subtotal = items.reduce(
     (a: number, i: { productId: string; qty: number }) => {
       const p = byId.get(i.productId);
       if (!p) return a;
-      // harga grosir (v6) ikut dihitung di server — sama aturannya dengan
-      // create_order; tanpa harga client sama sekali
-      return a + unitPrice(p, i.qty) * i.qty;
+      // harga grosir (v6) + harga khusus agen (v9) ikut dihitung di server —
+      // sama aturannya dengan create_order; tanpa harga client sama sekali
+      return a + unitPriceWithAgent(p, i.qty, agentPrices) * i.qty;
     },
     0,
   );
@@ -125,10 +151,6 @@ export async function POST(req: Request) {
     discount = res.discount ?? 0;
     couponCode = wantedCoupon;
   }
-
-  // kode agen (v6) — pembersihan & validitas diputus oleh create_order di DB;
-  // API hanya meneruskan apa adanya (kode tak dikenal = tanpa atribusi)
-  const agentCode = normalizeAgentCode(body.agentCode);
 
   // kode pesanan unik dengan percobaan ulang bila bentrok
   let lastError = "";

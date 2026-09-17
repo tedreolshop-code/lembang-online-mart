@@ -17,10 +17,11 @@ export default function RefCapture() {
     const code = ref.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!code) return;
     // simpan dulu (berlaku default 30 hari), lalu laporkan klik — respons
-    // membawa link_days sebenarnya untuk menyegarkan masa berlaku
+    // membawa link_days + harga khusus agen (v9) yang sebenarnya
     storeAgentRef(code, 30);
     void trackAgentRef(code).then((r) => {
-      if (r.ok && r.linkDays != null) storeAgentRef(code, r.linkDays);
+      if (!r.ok) return;
+      storeAgentRef(code, r.linkDays ?? 30, r.prices ?? []);
     });
     // buang ?ref= dari address bar (tanpa reload)
     const sp = new URLSearchParams(params);

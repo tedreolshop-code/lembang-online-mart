@@ -28,6 +28,8 @@ function agentToRow(a: Partial<Agent>): Record<string, unknown> | null {
     pay_method: a.payMethod === "transfer" ? "transfer" : "ewallet",
     pay_target: String(a.payTarget ?? "").trim().slice(0, 80),
     commission_percent: pct,
+    // mode komisi (v9) — penanda UI; perhitungan tetap di create_order
+    commission_mode: a.commissionMode === "price" ? "price" : "percent",
     status:
       a.status === "aktif" || a.status === "nonaktif" ? a.status : "pending",
     updated_at: new Date().toISOString(),
@@ -72,16 +74,28 @@ export async function POST(req: Request) {
     .select("total_klik")
     .eq("code", code)
     .maybeSingle();
-  const payload = existing ? { ...row, total_klik: existing.total_klik } : row;
+  const payload: Record<string, unknown> = existing
+    ? { ...row, total_klik: existing.total_klik }
+    : row;
 
-  const { error } = await db().from("agents").upsert(payload);
+  let { error } = await db().from("agents").upsert(payload);
+  let warning: string | undefined;
+  // kolom commission_mode (v9) hanya ada setelah alter-v9.sql — bila belum,
+  // simpan ulang tanpa kolom itu supaya agen tetap bisa disimpan admin
+  if (error && /commission_mode/i.test(error.message)) {
+    const tanpaMode = { ...payload };
+    delete tanpaMode.commission_mode;
+    error = (await db().from("agents").upsert(tanpaMode)).error;
+    warning =
+      "Mode komisi belum tersimpan — jalankan sql/alter-v9.sql di Supabase SQL Editor.";
+  }
   if (error) {
     return Response.json(
       { error: isMissing(error.message) ? AGENTS_MIGRATION_MSG : error.message },
       { status: 500 },
     );
   }
-  return Response.json({ ok: true, code });
+  return Response.json({ ok: true, code, warning });
 }
 
 /** DELETE: ?code= — hanya bila agen belum punya riwayat komisi.
