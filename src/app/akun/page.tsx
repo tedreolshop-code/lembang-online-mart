@@ -84,12 +84,18 @@ export default function AkunPage() {
     setLoading(true);
     setLoginErr("");
     try {
-      const { isNew } = await customerLogin(
+      const { isNew, localOnly } = await customerLogin(
         loginForm.phone,
         loginForm.name,
         loginForm.address,
       );
-      setLoginMsg(isNew ? "Pendaftaran berhasil! Akunmu siap." : "Login berhasil!");
+      setLoginMsg(
+        localOnly
+          ? "Nomor ini sudah pernah dipakai. Data pengiriman disimpan di perangkat ini saja."
+          : isNew
+            ? "Pendaftaran berhasil! Akunmu siap."
+            : "Login berhasil!",
+      );
       setLoginOpen(false);
     } catch (err) {
       setLoginErr(err instanceof Error ? err.message : "Gagal. Coba lagi.");

@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { SEED_PRODUCTS } from "@/data/seed";
-import { DEFAULT_SETTINGS, hitungOngkir, normalizeSettings } from "./config";
+import { DEFAULT_SETTINGS, formatWaDigits, hitungOngkir, normalizeSettings } from "./config";
 import type { ShipOption, StoreSettings } from "./config";
 import { cloudMode, authHeaders } from "./auth";
 import { couponDiscount } from "./coupon";
@@ -119,6 +119,21 @@ function rememberMyOrder(id: string) {
   localStorage.setItem(MY_ORDERS_KEY, JSON.stringify(ids));
 }
 
+/** Error API yang menyertakan kode status HTTP.
+
+    Sebelumnya `api()` hanya melempar Error biasa, jadi pemanggil tidak bisa
+    membedakan 409 "nomor sudah terdaftar" dari kegagalan server — padahal
+    keduanya butuh penanganan yang sangat berbeda. */
+class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -130,7 +145,10 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error || `Kesalahan server (${res.status})`);
+    throw new ApiError(
+      body.error || `Kesalahan server (${res.status})`,
+      res.status,
+    );
   }
   return res.json() as Promise<T>;
 }
@@ -692,31 +710,62 @@ export function useCustomerAuth(): Customer | null {
   );
 }
 
-/** Daftar atau login pelanggan.
-    Cloud: upsert ke tabel customers → data tersinkron lintas perangkat.
-    Lokal: simpan di localStorage. */
+/** Hasil daftar/masuk pelanggan. */
+export interface CustomerLoginResult {
+  customer: Customer;
+  isNew: boolean;
+  /** Nomor sudah pernah dipakai: profil disimpan di perangkat ini saja,
+      tidak ada baris baru di server. Bukan kegagalan. */
+  localOnly?: boolean;
+}
+
+/** Daftar atau masuk sebagai pelanggan.
+    Cloud: daftarkan nomor baru ke tabel customers.
+    Lokal: simpan di localStorage.
+
+    Nomor yang SUDAH terdaftar (409) sengaja tidak diperlakukan sebagai gagal.
+    Tanpa OTP, tidak ada cara memastikan nomor itu benar milik pemanggil, jadi
+    server menolak menimpa dan tidak mengirim data tersimpan. Karena profil
+    pelanggan memang hanya berguna di perangkat ini (checkout terisi dari
+    localStorage, riwayat pesanan pakai kode pesanan), permintaan diteruskan
+    secara lokal supaya pelanggan lama tidak menemui jalan buntu. */
 export async function customerLogin(
   phone: string,
   name: string,
   address: string,
-): Promise<{ customer: Customer; isNew: boolean }> {
-  const cleanPhone = phone.replace(/[^0-9]/g, "");
+): Promise<CustomerLoginResult> {
+  // pakai normalisasi yang sama dengan server (0… → 62…), supaya nomor yang
+  // tersimpan dari jalur mana pun seragam
+  const cleanPhone = formatWaDigits(phone);
   if (cloudMode) {
-    const res = await api<{ ok: boolean; customer: Customer; isNew: boolean }>(
-      "/api/customers",
-      {
+    try {
+      const res = await api<{
+        ok: boolean;
+        customer: Customer;
+        isNew: boolean;
+      }>("/api/customers", {
         method: "POST",
         body: JSON.stringify({ phone: cleanPhone, name, address }),
-      },
-    );
-    writeCustomerAuth(res.customer);
-    // simpan juga ke data pengiriman agar checkout terisi otomatis
-    saveCustomer({
-      name: res.customer.name,
-      phone: res.customer.phone,
-      address: res.customer.address,
-    });
-    return { customer: res.customer, isNew: res.isNew };
+      });
+      writeCustomerAuth(res.customer);
+      // simpan juga ke data pengiriman agar checkout terisi otomatis
+      saveCustomer({
+        name: res.customer.name,
+        phone: res.customer.phone,
+        address: res.customer.address,
+      });
+      return { customer: res.customer, isNew: res.isNew };
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 409) throw err;
+      const customer: Customer = {
+        phone: cleanPhone,
+        name: name.trim(),
+        address: address.trim(),
+      };
+      writeCustomerAuth(customer);
+      saveCustomer(customer);
+      return { customer, isNew: false, localOnly: true };
+    }
   }
   const customer: Customer = {
     phone: cleanPhone,
