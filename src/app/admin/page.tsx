@@ -81,11 +81,11 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
     <div className="mx-auto max-w-sm py-10">
       <div className="rounded-2xl bg-white p-6 shadow-md">
         <Logo className="mx-auto h-14 w-14" />
-        <h1 className="mt-3 text-center text-lg font-extrabold text-slate-800">
-          Admin {settings.name}
+        <h1 className="mt-3 text-center text-lg font-extrabold tracking-tight text-slate-800">
+          {settings.name}
         </h1>
-        <p className="mt-1 text-center text-xs text-slate-500">
-          Masuk untuk mengelola produk, pesanan &amp; pengaturan warung
+        <p className="text-center text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400">
+          Admin
         </p>
         <form onSubmit={submit} className="mt-5 space-y-3">
           {cloudMode && (
@@ -121,21 +121,18 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
             {busy ? "Memproses…" : "Masuk"}
           </button>
         </form>
-        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-center text-[11px] text-slate-400">
-          {cloudMode ? (
-            <>
-              Mode database aktif — login memakai akun admin Supabase
-              (dibuat di Dashboard → Authentication).
-            </>
-          ) : settings.adminPassword === DEFAULT_SETTINGS.adminPassword ? (
-            <>
-              Demo: password <b className="font-mono">admin123</b> (bisa diganti
-              di menu Pengaturan)
-            </>
-          ) : (
-            "Password sudah diganti pemilik toko."
-          )}
-        </p>
+        {cloudMode ||
+        settings.adminPassword === DEFAULT_SETTINGS.adminPassword ? (
+          <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-center text-[11px] text-slate-400">
+            {cloudMode ? (
+              "Masuk dengan akun admin Supabase."
+            ) : (
+              <>
+                Demo: password <b className="font-mono">admin123</b>
+              </>
+            )}
+          </p>
+        ) : null}
       </div>
     </div>
   );
