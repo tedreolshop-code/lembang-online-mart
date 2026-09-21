@@ -11,19 +11,10 @@ import RefCapture from "@/components/RefCapture";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { getThemeColors } from "@/lib/server-theme";
 
-/* Mode lokal: tema tersimpan ada di localStorage yang tidak bisa dibaca
-   server. Skrip inline di awal <body> ini dieksekusi parser sebelum konten
-   ter-paint dan menyuntik <style> "los-theme-init-css" agar paint pertama
-   sudah memakai tema pemilik — bukan fallback lalu berubah.
-
-   Skrip HANYA menyuntik style bila localStorage memang menyimpan tema
-   kustom — di mode cloud localStorage kosong, dan tanpa syarat ini jembatan
-   justru memasang warna default menimpa tema dari server (kedip baru).
-
-   Pilih style sheet (bukan atribut style di <html>) supaya tidak bentrok
-   dengan hidrasi React atas elemen <html>; selektor `:root:root` membuatnya
-   menang atas aturan `:root` ThemeStyle, dan ThemeStyle menghapus elemen ini
-   setelah mount (saat itu nilainya sudah membaca localStorage yang sama). */
+/* Fallback prapaint untuk mode lokal / SSR tanpa tema. Jangan jalankan
+   ketika tema SSR tersedia: mirror browser bisa lebih lama dari server.
+   Style terpisah menghindari perubahan atribut <html> saat hidrasi, dan
+   ditahan sampai store selesai dimuat (termasuk bila warnanya default). */
 const LOCAL_THEME_INIT = `(function(){try{
 var s=JSON.parse(localStorage.getItem("los_settings_v1")||"null")||{};
 var re=/^#[0-9a-fA-F]{6}$/;
@@ -36,8 +27,7 @@ var k=1+f;return"#"+c(r*k)+c(g*k)+c(b*k)}
 var css=":root:root{--color-brand:"+p+";--color-brand-dark:"+sh(p,-0.18)+
 ";--color-brand-soft:"+sh(p,0.88)+";--color-navy:"+d+
 ";--color-navy-dark:"+sh(d,-0.22)+";--color-navy-soft:"+sh(d,0.92)+";}";
-// tanpa tema kustom di localStorage (mode cloud / belum pernah diatur):
-// biarkan tema dari server (SSR) yang terpasang — jangan pasang default
+// Tanpa warna tersimpan, gunakan default globals.css.
 if(!(re.test(s.colorPrimary)||re.test(s.colorDark)))return;
 var el=document.createElement("style");
 el.id="los-theme-init-css";
@@ -80,13 +70,12 @@ export default async function RootLayout({
   return (
     <html lang="id" className={`${jakarta.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col pb-16 font-sans md:pb-0">
-        {/* Elemen pertama body → dieksekusi parser sebelum konten apa pun
-            ter-paint: tema tersimpan (mode lokal) dipasang ke <html> sebelum
-            Style React di bawah siap, lalu dilepas ThemeStyle saat mount. */}
-        <script
-          id="los-theme-init"
-          dangerouslySetInnerHTML={{ __html: LOCAL_THEME_INIT }}
-        />
+        {!theme && (
+          <script
+            id="los-theme-init"
+            dangerouslySetInnerHTML={{ __html: LOCAL_THEME_INIT }}
+          />
+        )}
         <CartProvider>
           <ThemeStyle initial={theme ?? undefined} />
           <Suspense fallback={null}>

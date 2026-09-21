@@ -35,7 +35,12 @@ function bannerList(v: unknown, fallback: BannerSlide[]): BannerSlide[] {
 
 export async function GET(req: Request) {
   if (!isCloud) return cloudRequired();
-  const { data } = await db().from("settings").select("*").eq("id", 1).single();
+  const { data, error } = await db().from("settings").select("*").eq("id", 1).maybeSingle();
+  // Gangguan DB bukan pengaturan default yang berhasil dibaca. Klien
+  // mempertahankan tema terakhir dan tidak merusak mirror localStorage.
+  if (error) {
+    return Response.json({ error: "Pengaturan belum dapat dimuat." }, { status: 503 });
+  }
   const full = data ? rowToSettings(data) : DEFAULT_SETTINGS;
 
   // kredensial notifikasi hanya dikirim ke admin yang login
@@ -93,12 +98,14 @@ export async function PUT(req: Request) {
 
   let error = (await db().from("settings").upsert(row)).error;
   let warning: string | undefined;
+  let themeSaved = true;
   if (error) {
     const partial = drop({ ...row }, v4Keys);
     error = (await db().from("settings").upsert(partial)).error;
     warning =
       "Pengaturan Xpress/keterangan ongkir belum tersimpan di database — jalankan sql/alter-v4.sql di Supabase SQL Editor.";
     if (error) {
+      themeSaved = false;
       error = (await db().from("settings").upsert(drop(partial, v3Keys))).error;
       warning = error
         ? undefined
@@ -109,9 +116,10 @@ export async function PUT(req: Request) {
     }
   }
 
-  // tema tersimpan berubah → cache warna SSR dilirihkan agar paint
-  // berikutnya langsung memakai warna baru (tanpa kedip ke default)
-  invalidateThemeCache();
+  invalidateThemeCache(themeSaved ? {
+    colorPrimary: row.color_primary,
+    colorDark: row.color_dark,
+  } : undefined);
 
   // kredensial notifikasi → tabel notify_secrets (token kosong = tidak diubah)
   if (

@@ -157,29 +157,31 @@ const refreshProducts = async () => {
   cloudProducts = await api<Product[]>("/api/products");
   emit();
 };
-const refreshSettings = async () => {
-  cloudSettings = await api<StoreSettings>("/api/settings");
-  // cerminkan tema ke localStorage — jaring pengaman paint pertama bila
-  // HTML berikutnya datang tanpa tema (cold start/fetch DB gagal di server)
+/** Mirror tema cloud hanya dari pembacaan yang berhasil (SSR atau API). */
+export function rememberThemeColors(theme: Pick<StoreSettings, "colorPrimary" | "colorDark">): void {
+  if (!cloudMode) return;
   try {
     const re = /^#[0-9a-fA-F]{6}$/;
-    const cur = JSON.parse(
-      localStorage.getItem("los_settings_v1") ?? "null",
-    ) as Partial<StoreSettings> | null;
-    const p = re.test(cloudSettings.colorPrimary)
-      ? cloudSettings.colorPrimary
-      : "";
-    const d = re.test(cloudSettings.colorDark) ? cloudSettings.colorDark : "";
-    if (p || d) {
-      localStorage.setItem(
-        "los_settings_v1",
-        JSON.stringify({ ...(cur ?? {}), ...(p ? { colorPrimary: p } : {}), ...(d ? { colorDark: d } : {}) }),
-      );
+    if (!re.test(theme.colorPrimary) || !re.test(theme.colorDark)) return;
+    let cur: Partial<StoreSettings> | null = null;
+    try {
+      cur = JSON.parse(localStorage.getItem(KEYS.settings) ?? "null");
+    } catch {
+      // Mirror rusak boleh diganti oleh tema yang sudah tervalidasi.
     }
-    // tanpa tema valid dari server → biarkan mirror lama tetap ada
+    localStorage.setItem(KEYS.settings, JSON.stringify({
+      ...cur,
+      colorPrimary: theme.colorPrimary,
+      colorDark: theme.colorDark,
+    }));
   } catch {
     /* abaikan — mirror bersifat best-effort */
   }
+}
+
+const refreshSettings = async () => {
+  cloudSettings = await api<StoreSettings>("/api/settings", { cache: "no-store" });
+  rememberThemeColors(cloudSettings);
   emit();
 };
 const refreshOrders = async () => {
@@ -917,6 +919,15 @@ export async function checkCoupon(
 }
 
 /* ── pengaturan toko ──────────────────────────────────────────── */
+
+/** Snapshot SSR selalu belum siap; warna default dari API tetap siap. */
+export function useSettingsReady(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => !cloudMode || cloudSettings !== DEFAULT_SETTINGS,
+    () => false,
+  );
+}
 
 export function useSettings(): StoreSettings {
   return useSyncExternalStore(

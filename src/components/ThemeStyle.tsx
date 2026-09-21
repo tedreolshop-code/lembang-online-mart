@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-import { useSettings } from "@/lib/store";
+import { useEffect, useLayoutEffect } from "react";
+import { rememberThemeColors, useSettings, useSettingsReady } from "@/lib/store";
 import { mixWhite, shade, themeVarsCss } from "@/lib/theme";
-import { DEFAULT_SETTINGS } from "@/lib/config";
 
 /** Warna hasil pembacaan SSR (mode cloud) — memastikan paint pertama
     memakai warna tersimpan, bukan default, sebelum fetch klien tiba. */
@@ -54,34 +53,24 @@ function safe(hex: string, fallback: string): string {
     prapaint di layout, dan komponen ini menahannya sampai store siap. */
 export default function ThemeStyle({ initial }: { initial?: ThemeInitial }) {
   const s = useSettings();
-  // true bila store klien masih memakai warna default (fetch belum tiba,
-  // atau pemilik memang belum pernah mengganti warna)
-  const masihDefault =
-    s.colorPrimary === DEFAULT_SETTINGS.colorPrimary &&
-    s.colorDark === DEFAULT_SETTINGS.colorDark;
-
-  // CSS yang dirender React:
-  // - Ada `initial` (SSR berhasil membaca tema) → pakai itu sampai store
-  //   membawa nilai kustom yang lebih baru.
-  // - Tanpa `initial` (mode lokal, atau SSR kehilangan tema) → jangan render
-  //   apa pun selama store masih default, agar catatan warna dari paint
-  //   pertama (skrip prapaint/jembatan) tidak tertimpa warna default.
-  const css = initial
-    ? themeVarsCss(
-        masihDefault ? initial.colorPrimary : s.colorPrimary,
-        masihDefault ? initial.colorDark : s.colorDark,
-      )
-    : masihDefault
-      ? ""
-      : themeVarsCss(s.colorPrimary, s.colorDark);
+  const ready = useSettingsReady();
+  // Status pemuatan terpisah dari nilai: default juga merupakan pilihan
+  // tema yang sah. Selama fetch belum berhasil, pertahankan SSR/jembatan.
+  const view = ready ? s : initial;
+  const css = view ? themeVarsCss(view.colorPrimary, view.colorDark) : "";
 
   // Jembatan prapaint dilepas hanya setelah React siap mengambil alih
   // (style dirender dengan nilai yang sama). Bila belum, jembatan
   // dipertahankan supaya warna paint pertama tetap menempel.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!css) return;
     document.getElementById("los-theme-init-css")?.remove();
   }, [css]);
+
+  // Simpan juga hasil SSR, walaupun fetch pengaturan klien sedang gagal.
+  useEffect(() => {
+    if (view) rememberThemeColors(view);
+  }, [view]);
 
   return css ? (
     <style
