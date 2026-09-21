@@ -1,5 +1,6 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { rowToSettings } from "@/lib/rows";
+import { invalidateThemeCache } from "@/lib/server-theme";
 import { DEFAULT_BANNERS, DEFAULT_SETTINGS, type BannerSlide, type StoreSettings } from "@/lib/config";
 import { readSecrets, writeSecrets } from "@/lib/notify-secrets";
 
@@ -107,6 +108,10 @@ export async function PUT(req: Request) {
       }
     }
   }
+
+  // tema tersimpan berubah → cache warna SSR dilirihkan agar paint
+  // berikutnya langsung memakai warna baru (tanpa kedip ke default)
+  invalidateThemeCache();
 
   // kredensial notifikasi → tabel notify_secrets (token kosong = tidak diubah)
   if (

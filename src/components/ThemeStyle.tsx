@@ -5,8 +5,8 @@ import { useSettings } from "@/lib/store";
 import { mixWhite, shade, themeVarsCss } from "@/lib/theme";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 
-/** Pratinjau warna dari server (mode cloud) — mencegah kedip tema saat
-    paint pertama sebelum /api/settings tiba di klien. */
+/** Warna hasil pembacaan SSR (mode cloud) — memastikan paint pertama
+    memakai warna tersimpan, bukan default, sebelum fetch klien tiba. */
 export interface ThemeInitial {
   colorPrimary: string;
   colorDark: string;
@@ -49,30 +49,46 @@ function safe(hex: string, fallback: string): string {
 
     `initial` dari root layout (mode cloud) memastikan render server — dan
     paint pertama browser — sudah memakai warna tersimpan, bukan fallback,
-    sehingga tidak ada kedip warna sebelum hasil fetch klien tiba. */
+    sehingga tidak ada kedip warna sebelum hasil fetch klien tiba. Mode
+    lokal tidak mengirim `initial`: tema paint pertama dipasang skrip
+    prapaint di layout, dan komponen ini menahannya sampai store siap. */
 export default function ThemeStyle({ initial }: { initial?: ThemeInitial }) {
   const s = useSettings();
-  // selama store belum menelan hasil fetch (objek masih DEFAULT_SETTINGS),
-  // pakai nilai dari server; setelahnya nilai store yang menang (selalu
-  // paling baru — admin mungkin menyimpan tema berbeda saat halaman terbuka)
-  const view = initial && s === DEFAULT_SETTINGS ? initial : s;
+  // true bila store klien masih memakai warna default (fetch belum tiba,
+  // atau pemilik memang belum pernah mengganti warna)
+  const masihDefault =
+    s.colorPrimary === DEFAULT_SETTINGS.colorPrimary &&
+    s.colorDark === DEFAULT_SETTINGS.colorDark;
 
-  // mode lokal: skrip prapaint di layout menyuntik <style id="los-theme-init-css">
-  // sebagai "jembatan" agar paint pertama sudah memakai tema localStorage.
-  // Setelah React merender style di atas (nilai sama — sama-sama dibaca dari
-  // localStorage), jembatan dilepas supaya perubahan tema selanjutnya
-  // (mis. sinkron antar-tab) tetap bisa mengupdate variabel.
+  // CSS yang dirender React:
+  // - Ada `initial` (SSR berhasil membaca tema) → pakai itu sampai store
+  //   membawa nilai kustom yang lebih baru.
+  // - Tanpa `initial` (mode lokal, atau SSR kehilangan tema) → jangan render
+  //   apa pun selama store masih default, agar catatan warna dari paint
+  //   pertama (skrip prapaint/jembatan) tidak tertimpa warna default.
+  const css = initial
+    ? themeVarsCss(
+        masihDefault ? initial.colorPrimary : s.colorPrimary,
+        masihDefault ? initial.colorDark : s.colorDark,
+      )
+    : masihDefault
+      ? ""
+      : themeVarsCss(s.colorPrimary, s.colorDark);
+
+  // Jembatan prapaint dilepas hanya setelah React siap mengambil alih
+  // (style dirender dengan nilai yang sama). Bila belum, jembatan
+  // dipertahankan supaya warna paint pertama tetap menempel.
   useEffect(() => {
+    if (!css) return;
     document.getElementById("los-theme-init-css")?.remove();
-  }, []);
+  }, [css]);
 
-  return (
+  return css ? (
     <style
+      id="los-theme-vars"
       // variabel warna global — nilai berasal dari pengaturan pemilik toko
-      dangerouslySetInnerHTML={{
-        __html: themeVarsCss(view.colorPrimary, view.colorDark),
-      }}
+      dangerouslySetInnerHTML={{ __html: css }}
     />
-  );
+  ) : null;
 }
 

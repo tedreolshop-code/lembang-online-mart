@@ -159,6 +159,27 @@ const refreshProducts = async () => {
 };
 const refreshSettings = async () => {
   cloudSettings = await api<StoreSettings>("/api/settings");
+  // cerminkan tema ke localStorage — jaring pengaman paint pertama bila
+  // HTML berikutnya datang tanpa tema (cold start/fetch DB gagal di server)
+  try {
+    const re = /^#[0-9a-fA-F]{6}$/;
+    const cur = JSON.parse(
+      localStorage.getItem("los_settings_v1") ?? "null",
+    ) as Partial<StoreSettings> | null;
+    const p = re.test(cloudSettings.colorPrimary)
+      ? cloudSettings.colorPrimary
+      : "";
+    const d = re.test(cloudSettings.colorDark) ? cloudSettings.colorDark : "";
+    if (p || d) {
+      localStorage.setItem(
+        "los_settings_v1",
+        JSON.stringify({ ...(cur ?? {}), ...(p ? { colorPrimary: p } : {}), ...(d ? { colorDark: d } : {}) }),
+      );
+    }
+    // tanpa tema valid dari server → biarkan mirror lama tetap ada
+  } catch {
+    /* abaikan — mirror bersifat best-effort */
+  }
   emit();
 };
 const refreshOrders = async () => {
