@@ -1,0 +1,120 @@
+- generic [active] [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - generic [ref=f2e3]:
+      - link "Lembang Online Mart" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+      - navigation [ref=f2e7]:
+        - link "Beranda" [ref=f2e8] [cursor=pointer]:
+          - /url: /
+        - link "Kategori" [ref=f2e9] [cursor=pointer]:
+          - /url: /kategori
+        - link "Keranjang" [ref=f2e10] [cursor=pointer]:
+          - /url: /keranjang
+        - link "Pesanan" [ref=f2e11] [cursor=pointer]:
+          - /url: /pesanan
+      - generic [ref=f2e12]:
+        - textbox "Cari produk" [ref=f2e17]:
+          - /placeholder: Cari kebutuhanmu…
+        - link "Akun saya" [ref=f2e18] [cursor=pointer]:
+          - /url: /akun
+          - generic [ref=f2e22]: Akun
+  - main [ref=f2e23]:
+    - generic [ref=f2e24]:
+      - navigation [ref=f2e25]:
+        - link "Beranda" [ref=f2e26] [cursor=pointer]:
+          - /url: /
+        - text: ›
+        - link "Mie Instan" [ref=f2e27] [cursor=pointer]:
+          - /url: /kategori/mie-instan
+        - text: ›Indomie Mi Goreng
+      - generic [ref=f2e28]:
+        - generic [ref=f2e29]:
+          - generic [ref=f2e30]: 🍜
+          - img "Indomie Mi Goreng" [ref=f2e31]
+        - generic [ref=f2e32]:
+          - generic [ref=f2e33]: Terlaris
+          - heading "Indomie Mi Goreng" [level=1] [ref=f2e35]
+          - paragraph [ref=f2e36]: 1 bungkus
+          - generic [ref=f2e37]: Rp3.500
+          - paragraph [ref=f2e39]:
+            - generic [ref=f2e40]: Stok tersedia (150)
+          - paragraph [ref=f2e41]: Mi instan goreng legendaris, satu bungkus siap disajikan. Favorit semua umur.
+          - generic [ref=f2e42]:
+            - generic [ref=f2e43]:
+              - button "Kurangi jumlah" [ref=f2e44]
+              - generic [ref=f2e46]: "1"
+              - button "Tambah jumlah" [ref=f2e47]
+            - button "+ Keranjang" [ref=f2e50]
+            - button "Beli Sekarang" [ref=f2e55]
+            - button "Favorit" [ref=f2e56]
+          - list [ref=f2e59]:
+            - listitem [ref=f2e60]: Gratis ongkir min. belanja Rp50.000 area Lembang
+            - listitem [ref=f2e66]: Bayar di tempat (COD) atau transfer bank
+            - listitem [ref=f2e69]: Barang segar langsung dari warung
+      - generic [ref=f2e72]:
+        - generic [ref=f2e73]:
+          - heading "🛍️ Produk Serupa" [level=2] [ref=f2e74]:
+            - generic [ref=f2e75]: 🛍️
+            - text: Produk Serupa
+          - link "Lihat Semua" [ref=f2e76] [cursor=pointer]:
+            - /url: /kategori/mie-instan
+        - generic [ref=f2e79]:
+          - generic [ref=f2e80]:
+            - link "📦 Indomie Mi Goreng 1 Dus -6%" [ref=f2e81] [cursor=pointer]:
+              - /url: /produk/indomie-goreng-dus
+              - generic [ref=f2e82]:
+                - generic [ref=f2e83]: 📦
+                - img "Indomie Mi Goreng 1 Dus" [ref=f2e84]
+              - generic [ref=f2e85]: "-6%"
+            - button "Tambah ke favorit" [ref=f2e87]
+            - button "Tambah Indomie Mi Goreng 1 Dus ke keranjang" [ref=f2e90]
+            - generic [ref=f2e93]:
+              - link "Indomie Mi Goreng 1 Dus" [ref=f2e94] [cursor=pointer]:
+                - /url: /produk/indomie-goreng-dus
+              - generic [ref=f2e95]: 1 dus @ 40 pcs
+              - generic [ref=f2e96]: Rp140.000Rp132.000
+          - generic [ref=f2e97]:
+            - link "🍜 Mie Sedaap Goreng TERLARIS" [ref=f2e98] [cursor=pointer]:
+              - /url: /produk/mie-sedaap-goreng
+              - generic [ref=f2e99]:
+                - generic [ref=f2e100]: 🍜
+                - img "Mie Sedaap Goreng" [ref=f2e101]
+              - generic [ref=f2e102]: TERLARIS
+            - button "Tambah ke favorit" [ref=f2e104]
+            - button "Tambah Mie Sedaap Goreng ke keranjang" [ref=f2e107]
+            - generic [ref=f2e110]:
+              - link "Mie Sedaap Goreng" [ref=f2e111] [cursor=pointer]:
+                - /url: /produk/mie-sedaap-goreng
+              - generic [ref=f2e112]: 1 bungkus
+              - generic [ref=f2e113]: Rp3.300
+          - generic [ref=f2e114]:
+            - link "🍲 Indomie Kuah Ayam Bawang" [ref=f2e115] [cursor=pointer]:
+              - /url: /produk/indomie-kuah-ayam-bawang
+              - generic [ref=f2e116]:
+                - generic [ref=f2e117]: 🍲
+                - img "Indomie Kuah Ayam Bawang" [ref=f2e118]
+            - button "Tambah ke favorit" [ref=f2e119]
+            - button "Tambah Indomie Kuah Ayam Bawang ke keranjang" [ref=f2e122]
+            - generic [ref=f2e125]:
+              - link "Indomie Kuah Ayam Bawang" [ref=f2e126] [cursor=pointer]:
+                - /url: /produk/indomie-kuah-ayam-bawang
+              - generic [ref=f2e127]: 1 bungkus
+              - generic [ref=f2e128]: Rp3.200
+          - generic [ref=f2e129]:
+            - link "🍲 Mie Sedaap Kuah Soto BARU" [ref=f2e130] [cursor=pointer]:
+              - /url: /produk/mie-sedaap-soto
+              - generic [ref=f2e131]:
+                - generic [ref=f2e132]: 🍲
+                - img "Mie Sedaap Kuah Soto" [ref=f2e133]
+              - generic [ref=f2e134]: BARU
+            - button "Tambah ke favorit" [ref=f2e136]
+            - button "Tambah Mie Sedaap Kuah Soto ke keranjang" [ref=f2e139]
+            - generic [ref=f2e142]:
+              - link "Mie Sedaap Kuah Soto" [ref=f2e143] [cursor=pointer]:
+                - /url: /produk/mie-sedaap-soto
+              - generic [ref=f2e144]: 1 bungkus
+              - generic [ref=f2e145]: Rp3.200
+  - link "Chat Customer Service via WhatsApp" [ref=f2e146] [cursor=pointer]:
+    - /url: https://wa.me/6281234567890?text=Halo%20CS%20Lembang%20Online%20Mart%20%F0%9F%91%8B%20saya%20mau%20tanya-tanya%20dulu.
+    - generic [aria-hidden] [ref=f2e149]: CS
+  - alert [ref=f2e150]

@@ -1,0 +1,66 @@
+- generic [active] [ref=f1e1]:
+  - banner [ref=f1e2]:
+    - generic [ref=f1e3]:
+      - link "Lembang Online Mart" [ref=f1e4] [cursor=pointer]:
+        - /url: /
+      - navigation [ref=f1e7]:
+        - link "Beranda" [ref=f1e8] [cursor=pointer]:
+          - /url: /
+        - link "Kategori" [ref=f1e9] [cursor=pointer]:
+          - /url: /kategori
+        - link "Keranjang" [ref=f1e10] [cursor=pointer]:
+          - /url: /keranjang
+        - link "Pesanan" [ref=f1e11] [cursor=pointer]:
+          - /url: /pesanan
+      - generic [ref=f1e12]:
+        - textbox "Cari produk" [ref=f1e17]:
+          - /placeholder: Cari kebutuhanmu…
+        - link "Akun saya" [ref=f1e18] [cursor=pointer]:
+          - /url: /akun
+          - generic [ref=f1e22]: Akun
+  - main [ref=f1e23]:
+    - generic [ref=f1e24]:
+      - heading "Keranjang Belanja (1)" [level=1] [ref=f1e25]
+      - generic [ref=f1e26]:
+        - generic [ref=f1e28]:
+          - link "🍜 Indomie Mi Goreng" [ref=f1e29] [cursor=pointer]:
+            - /url: /produk/indomie-goreng-pcs
+            - generic [ref=f1e30]:
+              - generic [ref=f1e31]: 🍜
+              - img "Indomie Mi Goreng" [ref=f1e32]
+          - generic [ref=f1e33]:
+            - generic [ref=f1e34]:
+              - link "Indomie Mi Goreng" [ref=f1e35] [cursor=pointer]:
+                - /url: /produk/indomie-goreng-pcs
+              - button "Hapus Indomie Mi Goreng" [ref=f1e36]
+            - generic [ref=f1e41]: 1 bungkus
+            - generic [ref=f1e42]:
+              - generic [ref=f1e43]: Rp3.500
+              - generic [ref=f1e44]:
+                - button "Kurangi jumlah" [ref=f1e45]
+                - generic [ref=f1e47]: "1"
+                - button "Tambah jumlah" [ref=f1e48]
+        - generic [ref=f1e51]:
+          - heading "Ringkasan Belanja" [level=2] [ref=f1e52]
+          - generic [ref=f1e53]: Tambah Rp46.500 lagi untuk gratis ongkir!
+          - generic [ref=f1e60]:
+            - generic [ref=f1e61]:
+              - term [ref=f1e62]: Subtotal
+              - definition [ref=f1e63]: Rp3.500
+            - generic [ref=f1e64]:
+              - term [ref=f1e65]: Ongkir
+              - definition [ref=f1e66]: Rp5.000
+            - generic [ref=f1e67]:
+              - term [ref=f1e68]: Total
+              - definition [ref=f1e69]: Rp8.500
+          - paragraph [ref=f1e70]: "Area Lembang & sekitarnya. Reguler: diantar kurir warung maksimal 1×24 jam (gratis untuk belanja di atas batas). Xpress: tiba hari ini juga, biaya tambahan."
+          - link "Checkout Form (COD / Transfer)" [ref=f1e71] [cursor=pointer]:
+            - /url: /checkout
+          - link "Pesan via WhatsApp" [ref=f1e72] [cursor=pointer]:
+            - /url: https://wa.me/6281234567890?text=*Halo%20LEMBANG%20ONLINE%20MART!*%20%F0%9F%91%8B%0ASaya%20mau%20pesan%3A%0A%0A1.%20Indomie%20Mi%20Goreng%20(1%20bungkus)%20x1%20%E2%80%94%20Rp3.500%0A%0ASubtotal%3A%20Rp3.500%0AOngkir%20(Reguler)%3A%20Rp5.000%0A*Total%3A%20Rp8.500*%0A%0AMohon%20dikonfirmasi%20ya%2C%20terima%20kasih%20%F0%9F%99%8F
+          - paragraph [ref=f1e75]: Pesanan dikonfirmasi lewat WhatsApp ke nomor warung sebelum diantar.
+  - link "Chat Customer Service via WhatsApp" [ref=f1e76] [cursor=pointer]:
+    - /url: https://wa.me/6281234567890?text=Halo%20CS%20Lembang%20Online%20Mart%20%F0%9F%91%8B%20saya%20mau%20tanya-tanya%20dulu.
+    - generic [aria-hidden] [ref=f1e79]: CS
+  - button "Open Next.js Dev Tools" [ref=f1e85] [cursor=pointer]
+  - alert [ref=f1e89]

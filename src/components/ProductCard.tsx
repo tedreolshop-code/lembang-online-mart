@@ -75,9 +75,9 @@ export default function ProductCard({ product }: { product: Product }) {
         disabled={habis}
         aria-label={`Tambah ${product.name} ke keranjang`}
         onClick={() => addItem(product.id)}
-        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-brand text-white shadow-md transition hover:bg-brand-dark active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
+        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white shadow-md transition hover:bg-brand-dark active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 sm:h-10 sm:w-10"
       >
-        <PlusIcon className="h-4 w-4" />
+        <PlusIcon className="h-4 w-4 sm:h-5 sm:w-5" />
       </button>
 
       {/* info: nama, satuan, harga — di tengah ala mockup */}
