@@ -9,7 +9,8 @@ import { DEFAULT_SETTINGS, formatWaDigits, type StoreSettings } from "@/lib/conf
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { agentShareLink, DEFAULT_COMMISSION_SETTINGS, effectiveCommission, isCommissionReady } from "@/lib/agent";
 import { normalizeTiers } from "@/lib/pricing";
-import { CATEGORIES } from "@/data/seed";
+import { useCategoryCatalog, useCategories } from "@/lib/category-store";
+import CategoriesTab from "@/components/admin/CategoriesTab";
 import type { Agent, AgentCommission, AgentPrice, CommissionSettings, Coupon, Order, OrderStatus, PriceTier, Product } from "@/lib/types";
 import { BagIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from "@/components/Icons";
 import Logo from "@/components/Logo";
@@ -20,7 +21,7 @@ import { DEFAULT_BANNERS, type BannerSlide } from "@/lib/config";
 const EMPTY_FORM: Product = {
   id: "",
   name: "",
-  category: "mie-instan",
+  category: "",
   price: 0,
   unit: "1 pcs",
   emoji: "🛒",
@@ -160,9 +161,10 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<
-    "produk" | "stok" | "pesanan" | "laporan" | "voucher" | "agen" | "pengaturan" | "tampilan"
+    "produk" | "kategori" | "stok" | "pesanan" | "laporan" | "voucher" | "agen" | "pengaturan" | "tampilan"
   >("produk");
   const [showGuide, setShowGuide] = useState(false);
+  const [productCategory, setProductCategory] = useState<string | undefined>();
   const orders = useOrders();
   const pending = orders.filter((o) => o.status === "menunggu").length;
   const needStock = orders.filter(
@@ -235,7 +237,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       {tab === "produk" ? (
-        <ProdukTab />
+        <ProdukTab initialCategory={productCategory} />
+      ) : tab === "kategori" ? (
+        <CategoriesTab onAddProduct={(slug) => { setProductCategory(slug); setTab("produk"); }} />
       ) : tab === "stok" ? (
         <StokTab />
       ) : tab === "pesanan" ? (
@@ -260,8 +264,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_16px_rgba(15,23,42,0.08)] backdrop-blur"
       >
         <div className="no-scrollbar mx-auto flex max-w-3xl gap-2 overflow-x-auto">
-          <TabButton active={tab === "produk"} onClick={() => setTab("produk")}>
+          <TabButton active={tab === "produk"} onClick={() => { setProductCategory(undefined); setTab("produk"); }}>
             🛒 Produk
+          </TabButton>
+          <TabButton active={tab === "kategori"} onClick={() => setTab("kategori")}>
+            🗂️ Kategori
           </TabButton>
           <TabButton active={tab === "stok"} onClick={() => setTab("stok")}>
             📦 Stok
@@ -536,13 +543,14 @@ function TabButton({
 
 /* ── tab produk (CRUD) ────────────────────────────────────────── */
 
-function ProdukTab() {
+function ProdukTab({ initialCategory }: { initialCategory?: string }) {
   const products = useProducts();
-  const [editing, setEditing] = useState<Product | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const { categories, ready, refresh } = useCategoryCatalog();
+  const [editing, setEditing] = useState<Product | null>(initialCategory ? { ...EMPTY_FORM, category: initialCategory } : null);
+  const [showForm, setShowForm] = useState(!!initialCategory);
 
   const startAdd = () => {
-    setEditing({ ...EMPTY_FORM });
+    setEditing({ ...EMPTY_FORM, category: categories[0]?.slug ?? "" });
     setShowForm(true);
   };
 
@@ -576,7 +584,7 @@ function ProdukTab() {
           </p>
           <button
             type="button"
-            onClick={() => void seedDatabase()}
+            onClick={() => void seedDatabase().then(() => refresh())}
             className="mt-2 rounded-full bg-navy px-5 py-2 text-xs font-bold text-white shadow hover:bg-navy-dark"
           >
             Muat Data Awal ke Database
@@ -589,12 +597,17 @@ function ProdukTab() {
           <button
             type="button"
             onClick={startAdd}
+            disabled={!ready || categories.length === 0}
             className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
           >
             <PlusIcon className="h-4 w-4" /> Tambah Produk
           </button>
         )}
       </div>
+
+      {ready && categories.length === 0 && (
+        <p className="mb-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Tambahkan kategori melalui tab Kategori sebelum menambah produk.</p>
+      )}
 
       {showForm && editing && (
         <ProductForm
@@ -634,7 +647,7 @@ function ProdukTab() {
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-xs text-slate-500">
-                  {CATEGORIES.find((c) => c.slug === p.category)?.name ??
+                  {categories.find((c) => c.slug === p.category)?.name ??
                     p.category}
                 </td>
                 <td className="px-3 py-2.5">
@@ -720,6 +733,7 @@ function ProductForm({
   onCancel: () => void;
   onSave: (p: Product) => void;
 }) {
+  const categories = useCategories();
   const [p, setP] = useState<Product>(initial);
   const [uploading, setUploading] = useState(false);
 
@@ -773,8 +787,10 @@ function ProductForm({
             value={p.category}
             onChange={(e) => set({ category: e.target.value })}
             className="input"
+            required
           >
-            {CATEGORIES.map((c) => (
+            {!categories.some((c) => c.slug === p.category) && <option value={p.category}>{p.category || "Pilih kategori"}</option>}
+            {categories.map((c) => (
               <option key={c.slug} value={c.slug}>
                 {c.name}
               </option>

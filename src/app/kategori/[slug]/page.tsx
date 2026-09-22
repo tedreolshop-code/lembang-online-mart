@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useProducts } from "@/lib/store";
-import { categoryBySlug } from "@/data/seed";
+import { useCategoryCatalog } from "@/lib/category-store";
+import CategoryStatus from "@/components/CategoryStatus";
 import ProductCard from "@/components/ProductCard";
 
 type SortKey = "populer" | "murah" | "mahal";
@@ -18,9 +19,10 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 export default function KategoriDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const products = useProducts();
+  const { categories, ready, error, refresh } = useCategoryCatalog();
   const [sort, setSort] = useState<SortKey>("populer");
 
-  const cat = categoryBySlug(slug);
+  const cat = categories.find((category) => category.slug === slug);
 
   const items = useMemo(() => {
     const filtered = products.filter((p) => p.category === slug);
@@ -37,6 +39,13 @@ export default function KategoriDetailPage() {
     }
   }, [products, slug, sort]);
 
+  if (!ready) return <CategoryStatus />;
+  if (!cat && error) return (
+    <div role="status" className="rounded-xl bg-white p-8 text-center text-sm text-slate-500">
+      Kategori belum dapat dimuat.
+      <button type="button" onClick={() => void refresh()} className="ml-2 font-bold text-brand">Coba lagi</button>
+    </div>
+  );
   if (!cat) {
     return (
       <div className="py-16 text-center">

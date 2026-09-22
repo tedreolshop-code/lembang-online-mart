@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { categoryBySlug } from "@/data/seed";
+import { useCategories } from "@/lib/category-store";
 import type { Product } from "@/lib/types";
 
 /** src foto yang sudah terbukti gagal dimuat — biar tidak dicoba ulang */
@@ -29,7 +29,8 @@ export default function ProductImage({
 }) {
   const [mounted, setMounted] = useState(false);
   const [failed, setFailed] = useState(false);
-  const cat = categoryBySlug(product.category);
+  const categories = useCategories();
+  const cat = categories.find((category) => category.slug === product.category);
   const src = product.image?.trim() || `/products/${product.id}.jpg`;
 
   useEffect(() => {

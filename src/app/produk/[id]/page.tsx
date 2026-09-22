@@ -7,7 +7,7 @@ import { useCart } from "@/lib/cart";
 import { useFavorites, useProduct, useProducts, toggleFavorite } from "@/lib/store";
 import { formatRupiah, discountPercent } from "@/lib/format";
 import { unitPrice } from "@/lib/pricing";
-import { categoryBySlug } from "@/data/seed";
+import { useCategories } from "@/lib/category-store";
 import { useSettings } from "@/lib/store";
 import ProductCard from "@/components/ProductCard";
 import ProductImage from "@/components/ProductImage";
@@ -25,6 +25,7 @@ export default function ProdukDetailPage() {
   const router = useRouter();
   const product = useProduct(id);
   const products = useProducts();
+  const categories = useCategories();
   const settings = useSettings();
   const { addItem } = useCart();
   const favorites = useFavorites();
@@ -47,7 +48,7 @@ export default function ProdukDetailPage() {
     );
   }
 
-  const cat = categoryBySlug(product.category);
+  const cat = categories.find((category) => category.slug === product.category);
   const diskon = discountPercent(product.price, product.oldPrice);
   const isFav = favorites.includes(product.id);
   const habis = product.stock <= 0;
@@ -74,7 +75,7 @@ export default function ProdukDetailPage() {
         </Link>
         <span className="mx-1">›</span>
         <Link href={`/kategori/${product.category}`} className="hover:text-brand">
-          {cat?.name}
+          {cat?.name ?? "Kategori"}
         </Link>
         <span className="mx-1">›</span>
         <span className="font-semibold text-slate-700">{product.name}</span>

@@ -3,13 +3,14 @@
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useProducts } from "@/lib/store";
-import { CATEGORIES } from "@/data/seed";
+import { useCategories } from "@/lib/category-store";
 import ProductCard from "@/components/ProductCard";
 import { SearchIcon } from "@/components/Icons";
 
 function CariContent() {
   const params = useSearchParams();
   const products = useProducts();
+  const categories = useCategories();
   const [q, setQ] = useState(params.get("q") ?? "");
   const [cat, setCat] = useState<string>("");
 
@@ -48,7 +49,7 @@ function CariContent() {
           onClick={() => setCat("")}
           label="Semua"
         />
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <FilterChip
             key={c.slug}
             active={cat === c.slug}

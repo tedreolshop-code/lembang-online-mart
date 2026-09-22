@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     );
   }
 
-  await db().from("categories").upsert(
+  const { error: categoryError } = await db().from("categories").upsert(
     CATEGORIES.map((c, i) => ({
       slug: c.slug,
       name: c.name,
@@ -27,7 +27,12 @@ export async function POST(req: Request) {
       tint: c.tint,
       sort: i,
     })),
+    // Kategori yang telah diedit admin tidak ditimpa saat mengisi produk awal.
+    { onConflict: "slug", ignoreDuplicates: true },
   );
+  if (categoryError) {
+    return Response.json({ error: "Kategori awal gagal dimuat. Silakan coba lagi." }, { status: 500 });
+  }
 
   await db().from("products").insert(
     SEED_PRODUCTS.map((p, i) => ({ ...productToRow(p), position: i })),

@@ -10,6 +10,8 @@ import ThemeStyle from "@/components/ThemeStyle";
 import RefCapture from "@/components/RefCapture";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { getThemeColors } from "@/lib/server-theme";
+import { getInitialCategories } from "@/lib/server-categories";
+import { CategoryProvider } from "@/lib/category-store";
 
 /* Fallback prapaint untuk mode lokal / SSR tanpa tema. Jangan jalankan
    ketika tema SSR tersedia: mirror browser bisa lebih lama dari server.
@@ -66,7 +68,7 @@ export default async function RootLayout({
   // CSS variables yang benar sejak HTML pertama (tanpa kedip tema).
   // Mode lokal: skrip prapaint di <body> membaca localStorage sebelum
   // paint pertama, jadi tema juga sudah benar sejak awal.
-  const theme = await getThemeColors();
+  const [theme, categories] = await Promise.all([getThemeColors(), getInitialCategories()]);
   return (
     <html lang="id" className={`${jakarta.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col pb-16 font-sans md:pb-0">
@@ -76,18 +78,20 @@ export default async function RootLayout({
             dangerouslySetInnerHTML={{ __html: LOCAL_THEME_INIT }}
           />
         )}
-        <CartProvider>
-          <ThemeStyle initial={theme ?? undefined} />
-          <Suspense fallback={null}>
-            <RefCapture />
-          </Suspense>
-          <Header />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-3 pb-10 pt-4 sm:px-6">
-            {children}
-          </main>
-          <BottomNav />
-          <FloatingWa />
-        </CartProvider>
+        <CategoryProvider initial={categories}>
+          <CartProvider>
+            <ThemeStyle initial={theme ?? undefined} />
+            <Suspense fallback={null}>
+              <RefCapture />
+            </Suspense>
+            <Header />
+            <main className="mx-auto w-full max-w-6xl flex-1 px-3 pb-10 pt-4 sm:px-6">
+              {children}
+            </main>
+            <BottomNav />
+            <FloatingWa />
+          </CartProvider>
+        </CategoryProvider>
       </body>
     </html>
   );

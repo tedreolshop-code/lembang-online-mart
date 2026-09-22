@@ -4,6 +4,8 @@ export interface Category {
   emoji: string;
   /** warna latar lembut untuk ikon kategori & thumbnail produk */
   tint: string;
+  /** urutan menu, angka kecil tampil lebih dulu */
+  sort: number;
 }
 
 export interface Product {

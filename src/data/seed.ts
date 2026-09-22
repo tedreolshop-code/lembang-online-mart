@@ -8,11 +8,7 @@ export const CATEGORIES: Category[] = [
   { slug: "bayi", name: "Popok & Bayi", emoji: "🧷", tint: "#eef7ee" },
   { slug: "kebersihan", name: "Kebersihan", emoji: "🧼", tint: "#edf6fa" },
   { slug: "dapur", name: "Kebutuhan Dapur", emoji: "🍳", tint: "#f6f0fa" },
-];
-
-export function categoryBySlug(slug: string): Category | undefined {
-  return CATEGORIES.find((c) => c.slug === slug);
-}
+].map((category, sort) => ({ ...category, sort }));
 
 export const SEED_PRODUCTS: Product[] = [
   // ── Mie Instan ──────────────────────────────────────────────

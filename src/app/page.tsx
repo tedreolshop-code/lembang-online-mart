@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useProducts } from "@/lib/store";
-import { CATEGORIES } from "@/data/seed";
+import { useCategories } from "@/lib/category-store";
+import CategoryStatus from "@/components/CategoryStatus";
 import ProductCard from "@/components/ProductCard";
 import BannerCarousel from "@/components/BannerCarousel";
-import { CategoryGlyph, TruckIcon } from "@/components/Icons";
+import { TruckIcon } from "@/components/Icons";
 
-/** Beranda ala mockup GrosirMaju: hero split navy+foto, kartu kategori
-    besar berikon (kartu aktif warna navy), lalu grid "Product". */
+/** Beranda warung: promo, rak kategori yang dikelola admin, lalu produk. */
 export default function HomePage() {
   const products = useProducts();
+  const categories = useCategories();
 
   const promo = products.filter((p) => p.isPromo);
   const terlaris = products.filter((p) => p.isBestSeller);
@@ -24,25 +25,26 @@ export default function HomePage() {
           (grid 4 kolom; min-h seragam + isi di tengah agar nama 1–2 baris
           tidak mengubah tinggi kartu) */}
       <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-extrabold text-slate-800">Belanja per Kategori</h2>
+          <Link href="/kategori" className="shrink-0 text-xs font-bold text-brand">Lihat semua →</Link>
+        </div>
+        <CategoryStatus />
         <div className="grid grid-cols-4 gap-2 sm:gap-4">
-          {CATEGORIES.map((c, idx) => (
+          {categories.map((c) => (
             <Link
               key={c.slug}
               href={`/kategori/${c.slug}`}
-              className={`group flex min-h-24 flex-col items-center justify-center gap-1.5 rounded-xl px-1 py-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:min-h-36 sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-7 ${
-                idx === 0
-                  ? "bg-navy text-white"
-                  : "border border-slate-100 bg-white text-slate-800 hover:border-navy/20"
-              }`}
+              className="group flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-white px-1 py-3 text-center text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md sm:min-h-36 sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-5"
             >
               <span
-                className={`flex h-8 w-8 items-center justify-center sm:h-12 sm:w-12 ${
-                  idx === 0 ? "text-brand" : "text-navy"
-                }`}
+                aria-hidden
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-2xl sm:h-14 sm:w-14 sm:text-3xl"
+                style={{ backgroundColor: c.tint }}
               >
-                <CategoryGlyph slug={c.slug} className="h-7 w-7 sm:h-10 sm:w-10" />
+                {c.emoji}
               </span>
-              <span className="text-[11px] font-bold leading-tight sm:text-sm">
+              <span className="w-full break-words text-[11px] font-bold leading-tight sm:text-sm">
                 {c.name}
               </span>
             </Link>

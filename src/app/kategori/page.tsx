@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useProducts } from "@/lib/store";
-import { CATEGORIES } from "@/data/seed";
+import { useCategories } from "@/lib/category-store";
+import CategoryStatus from "@/components/CategoryStatus";
 import { ChevronRightIcon } from "@/components/Icons";
 
 export default function KategoriPage() {
   const products = useProducts();
+  const categories = useCategories();
 
   return (
     <div>
@@ -17,8 +19,9 @@ export default function KategoriPage() {
         Pilih kategori untuk melihat barang di warung kami
       </p>
 
+      <CategoryStatus />
       <div className="grid gap-3 sm:grid-cols-2">
-        {CATEGORIES.map((c) => {
+        {categories.map((c) => {
           const items = products.filter((p) => p.category === c.slug);
           return (
             <Link
@@ -32,8 +35,8 @@ export default function KategoriPage() {
               >
                 {c.emoji}
               </span>
-              <span className="flex-1">
-                <span className="block font-bold text-slate-800">{c.name}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block break-words font-bold text-slate-800">{c.name}</span>
                 <span className="text-xs text-slate-500">
                   {items.length} produk tersedia
                 </span>

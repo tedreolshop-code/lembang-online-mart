@@ -27,8 +27,27 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 | Riwayat | `/pesanan` | Daftar pesanan + tombol konfirmasi WhatsApp |
 | Favorit | `/favorit` | Produk yang ditandai ♥ |
 | Akun | `/akun` | Menu pelanggan: tombol **Akun** di header (menggantikan tombol keranjang — keranjang kini di tab bar bawah & menu tengah) berisi data pengiriman yang diingat, pintasan pesanan, favorit, keranjang, info & kontak warung |
-| Admin | `/admin` | Kelola produk, pesanan, voucher, agen & pengaturan (password: `admin123`) |
+| Admin | `/admin` | Kelola kategori, produk, pesanan, voucher, agen & pengaturan (password demo lokal: `admin123`) |
 | Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan (tab "Tentang"; juga ditautkan dari halaman Akun) |
+
+## Kelola Kategori
+
+Buka **Admin → 🗂️ Kategori** untuk menambah kategori atau mengedit nama,
+ikon/emoji, warna latar, dan urutan tampil. Form menampilkan pratinjau sebelum
+disimpan. Angka urutan kecil tampil lebih dulu; gunakan nomor berbeda agar
+posisinya jelas. Setelah menyimpan, tombol **Tambah produk di sini** membuka
+form produk dengan kategori tersebut sudah dipilih.
+
+Perubahan dipakai di beranda, daftar/detail kategori, filter pencarian, dan
+pilihan kategori produk. Nama dapat berubah, sementara kode URL tetap agar
+produk dan tautan lama tetap terhubung.
+
+- **Cloud:** memakai tabel `categories` dari `sql/schema.sql` yang sudah ada;
+  tidak perlu migrasi tambahan. Penulisan hanya untuk admin terverifikasi.
+- **Lokal/demo:** tersimpan di browser dan tersinkron antar-tab.
+- **Pengujian:** `node scripts/check-categories.mjs` menjalankan uji browser
+  dan API dengan database tiruan. Memerlukan Edge, atau set `BROWSER_PATH`
+  ke executable Chromium. Pastikan dev server proyek sedang berhenti.
 
 ## Notifikasi Pesanan & Laporan
 
