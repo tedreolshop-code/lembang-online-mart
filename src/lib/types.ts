@@ -148,6 +148,8 @@ export interface Agent {
   totalKlik: number;
   /** email opsional untuk notifikasi agen (v8) */
   email?: string;
+  /** URL foto KTP agen — wajib diunggah admin saat mendaftarkan agen (v10) */
+  ktpUrl?: string;
   createdAt?: string;
 }
 

@@ -97,11 +97,16 @@ produk dan tautan lama tetap terhubung.
   produk, keranjang, dan checkout. Harga yang dipakai = tingkat dengan
   jumlah minimum terbesar yang tercapai; dihitung ulang oleh server dan
   fungsi database `create_order`, jadi tidak bisa dimanipulasi dari browser.
-- **Program agen** (Admin → 🤝 Agen): daftarkan agen (kode otomatis,
-  mis. `AGX7K2M`, bisa diganti manual), atur komisi global — persen atau
-  nominal tetap per pesanan, dasar sebelum/sesudah voucher, lantai & plafon,
-  masa berlaku tautan, masa tunggu cair — lalu aktifkan agen per orang.
+- **Program agen** (Admin → 🤝 Agen): pendaftaran agen ditutup untuk umum —
+  admin mendaftarkan agen langsung (kode otomatis, mis. `AGX7K2M`, bisa
+  diganti manual), atur komisi global — persen atau nominal tetap per
+  pesanan, dasar sebelum/sesudah voucher, lantai & plafon, masa berlaku
+  tautan, masa tunggu cair — lalu aktifkan agen per orang.
   Tiap agen boleh punya komisi khusus (%) yang menang atas aturan global.
+- **Foto KTP agen (v10)**: admin wajib mengunggah foto KTP saat
+  mendaftarkan agen. Foto disimpan di Supabase Storage bucket
+  `agent-ktp` (privat, hanya admin). Tombol 🪪 KTP di daftar agen
+  membuka foto KTP agen dalam tab baru (signed URL berlaku 1 jam).
 - **Tautan referral**: tombol 🔗 Tautan menyalin alamat `/?ref=KODE`.
   Pengunjung yang datang dari tautan itu otomatis terisi kode agennya di
   checkout (boleh juga diketik manual). Setiap pesanan dengan kode agen
@@ -270,6 +275,6 @@ src/
                   pricing.ts (harga grosir), agent.ts (logika komisi agen)
   data/seed.ts  → kategori + produk awal
 sql/schema.sql  → skema database Supabase (tabel, RLS, transaksi stok)
-sql/alter-v*.sql → migrasi bertahap untuk database yang sudah jalan (v6 terakhir)
+sql/alter-v*.sql → migrasi bertahap untuk database yang sudah jalan (v10 terakhir)
 scripts/        → shots.mjs (screenshot), fetch-images.mjs (foto produk)
 ```

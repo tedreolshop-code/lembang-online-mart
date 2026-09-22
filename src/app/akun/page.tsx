@@ -409,7 +409,7 @@ export default function AkunPage() {
           <span className="text-2xl">🤝</span>
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-bold text-brand-dark">
-              Jadi Agen Lembang
+              Program Agen Lembang
             </h2>
             <p className="mt-0.5 text-xs text-brand-dark/80">
               Dapat komisi dari setiap pesanan lewat link referral-mu
@@ -418,13 +418,6 @@ export default function AkunPage() {
         </div>
         <div className="mt-3 flex gap-2">
           <Link
-            href="/agen/daftar"
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark"
-          >
-            Daftar Jadi Agen
-            <ChevronRightIcon className="h-4 w-4" />
-          </Link>
-          <Link
             href="/agen/dashboard"
             className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-brand/30 bg-white px-4 py-2.5 text-sm font-bold text-brand transition hover:border-brand/50"
           >
@@ -432,6 +425,9 @@ export default function AkunPage() {
             <ChevronRightIcon className="h-4 w-4" />
           </Link>
         </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-brand-dark/70">
+          Pendaftaran agen melalui admin. Hubungi toko untuk mendaftar.
+        </p>
       </section>
 
       {agentRef && (

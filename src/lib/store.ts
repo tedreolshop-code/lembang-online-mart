@@ -1038,6 +1038,49 @@ export async function deleteAgent(code: string): Promise<void> {
   );
 }
 
+/* ── upload/get/hapus KTP agen (v10) ─────────────────────────── */
+
+/** Upload foto KTP agen ke Supabase Storage. Mengembalikan signed URL sementara. */
+export async function uploadKtp(
+  code: string,
+  file: File,
+): Promise<{ ktpUrl: string; warning?: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(
+    `/api/agents/${encodeURIComponent(code)}/ktp`,
+    {
+      method: "POST",
+      headers: { ...authHeaders() },
+      body: fd,
+    },
+  );
+  const body = await res.json();
+  if (!res.ok) {
+    throw new ApiError(body.error || "Upload KTP gagal.", res.status);
+  }
+  return { ktpUrl: body.ktpUrl, warning: body.warning };
+}
+
+/** Ambil signed URL foto KTP agen (admin). */
+export async function getKtpUrl(code: string): Promise<string | null> {
+  const res = await fetch(
+    `/api/agents/${encodeURIComponent(code)}/ktp`,
+    { headers: authHeaders() },
+  );
+  if (!res.ok) return null;
+  const body = await res.json();
+  return body.ktpUrl ?? null;
+}
+
+/** Hapus foto KTP agen dari storage + DB. */
+export async function deleteKtp(code: string): Promise<void> {
+  await api(
+    `/api/agents/${encodeURIComponent(code)}/ktp`,
+    { method: "DELETE" },
+  );
+}
+
 /** Aturan komisi global (Admin → Agen). */
 export async function getCommissionSettings(): Promise<CommissionSettings> {
   if (cloudMode) {

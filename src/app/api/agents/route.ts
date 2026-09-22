@@ -30,6 +30,8 @@ function agentToRow(a: Partial<Agent>): Record<string, unknown> | null {
     commission_percent: pct,
     // mode komisi (v9) — penanda UI; perhitungan tetap di create_order
     commission_mode: a.commissionMode === "price" ? "price" : "percent",
+    // URL foto KTP (v10) — diunggah admin via endpoint terpisah
+    ktp_url: a.ktpUrl ?? null,
     status:
       a.status === "aktif" || a.status === "nonaktif" ? a.status : "pending",
     updated_at: new Date().toISOString(),
@@ -42,7 +44,7 @@ export async function GET(req: Request) {
   if (!(await requireAdmin(req))) return unauthorized();
   const { data, error } = await db()
     .from("agents")
-    .select("*")
+    .select("code,nama,wa,alamat,pay_method,pay_target,commission_percent,commission_mode,ktp_url,status,total_klik,created_at")
     .order("created_at", { ascending: false });
   if (error) {
     return Response.json(
@@ -88,6 +90,15 @@ export async function POST(req: Request) {
     error = (await db().from("agents").upsert(tanpaMode)).error;
     warning =
       "Mode komisi belum tersimpan — jalankan sql/alter-v9.sql di Supabase SQL Editor.";
+  }
+  // kolom ktp_url (v10) hanya ada setelah alter-v10.sql — bila belum,
+  // simpan ulang tanpa kolom itu supaya agen tetap bisa disimpan admin
+  if (error && /ktp_url/i.test(error.message)) {
+    const tanpaKtp = { ...payload };
+    delete tanpaKtp.ktp_url;
+    error = (await db().from("agents").upsert(tanpaKtp)).error;
+    warning =
+      "Foto KTP belum tersimpan — jalankan sql/alter-v10.sql di Supabase SQL Editor.";
   }
   if (error) {
     return Response.json(

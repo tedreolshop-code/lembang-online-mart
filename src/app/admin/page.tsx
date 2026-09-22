@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon, listAgents, upsertAgent, deleteAgent, getCommissionSettings, saveCommissionSettings, listCommissions, commissionAction, overrideCommission, listAgentPrices, upsertAgentPrice, deleteAgentPrice } from "@/lib/store";
+import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon, listAgents, upsertAgent, deleteAgent, getCommissionSettings, saveCommissionSettings, listCommissions, commissionAction, overrideCommission, listAgentPrices, upsertAgentPrice, deleteAgentPrice, uploadKtp, getKtpUrl, deleteKtp } from "@/lib/store";
 import { printOrderStruk } from "@/lib/printStruk";
 import { cloudMode, adminLogin, adminLogout, hasAdminSession, localLogin, authHeaders, verifyAdminSession } from "@/lib/auth";
 import { DEFAULT_SETTINGS, formatWaDigits, type StoreSettings } from "@/lib/config";
@@ -1826,6 +1826,7 @@ const EMPTY_AGENT_FORM = {
   commissionMode: "percent" as NonNullable<Agent["commissionMode"]>,
   commissionPercent: "",
   status: "pending" as Agent["status"],
+  ktpUrl: "" as string,
 };
 
 /* ── baris editor harga khusus agen per produk (v9) ──────────── */
@@ -1952,6 +1953,9 @@ function AgenTab() {
   const [form, setForm] = useState(EMPTY_AGENT_FORM);
   const [editingCode, setEditingCode] = useState<string | null>(null);
   const [priceAgent, setPriceAgent] = useState<string | null>(null);
+  const [ktpPreview, setKtpPreview] = useState<string>("");
+  const [ktpBusy, setKtpBusy] = useState(false);
+  const [ktpError, setKtpError] = useState("");
 
   const products = useProducts();
 
@@ -1997,6 +2001,53 @@ function AgenTab() {
   const set = (patch: Partial<typeof form>) =>
     setForm((prev) => ({ ...prev, ...patch }));
 
+  /* ── upload KTP ────────────────────────────────────────────── */
+  const handleKtpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    // Untuk agen baru (code belum ada), simpan ke sementara & upload setelah agen tersimpan
+    if (!cloudMode) {
+      setKtpError("Upload KTP hanya tersedia di mode cloud (database terhubung).");
+      return;
+    }
+    setKtpBusy(true);
+    setKtpError("");
+    try {
+      // Bila agen sudah ada (edit mode), upload langsung
+      if (form.code) {
+        const { ktpUrl, warning } = await uploadKtp(form.code, file);
+        setKtpPreview(ktpUrl);
+        set({ ktpUrl });
+        flash(warning ?? "Foto KTP berhasil diunggah.");
+      } else {
+        // Untuk agen baru: upload sementara — simpan setelah agen tersimpan
+        setKtpError("Simpan agen dulu, lalu unggah foto KTP.");
+      }
+    } catch (err) {
+      setKtpError(err instanceof Error ? err.message : "Upload KTP gagal.");
+    } finally {
+      setKtpBusy(false);
+    }
+  };
+
+  const handleKtpDelete = async () => {
+    if (!form.code) return;
+    if (!confirm("Hapus foto KTP agen ini?")) return;
+    setKtpBusy(true);
+    setKtpError("");
+    try {
+      await deleteKtp(form.code);
+      setKtpPreview("");
+      set({ ktpUrl: "" });
+      flash("Foto KTP dihapus.");
+    } catch (err) {
+      setKtpError(err instanceof Error ? err.message : "Gagal menghapus KTP.");
+    } finally {
+      setKtpBusy(false);
+    }
+  };
+
   /* ── aturan komisi ──────────────────────────────────────────── */
   const setS = (patch: Partial<CommissionSettings>) =>
     setSettings((prev) => ({ ...prev, ...patch }));
@@ -2030,6 +2081,7 @@ function AgenTab() {
             : null,
         status: form.status,
         totalKlik: agents?.find((a) => a.code === form.code)?.totalKlik ?? 0,
+        ktpUrl: form.ktpUrl || undefined,
       });
       flash(
         warning ??
@@ -2039,13 +2091,14 @@ function AgenTab() {
       );
       setForm(EMPTY_AGENT_FORM);
       setEditingCode(null);
+      setKtpPreview("");
       load();
     } catch (e2) {
       flash(e2 instanceof Error ? `Gagal: ${e2.message}` : "Gagal menyimpan agen.");
     }
   };
 
-  const editAgen = (a: Agent) => {
+  const editAgen = async (a: Agent) => {
     setForm({
       code: a.code,
       nama: a.nama,
@@ -2056,8 +2109,16 @@ function AgenTab() {
       commissionMode: a.commissionMode ?? "percent",
       commissionPercent: a.commissionPercent == null ? "" : String(a.commissionPercent),
       status: a.status,
+      ktpUrl: a.ktpUrl ?? "",
     });
     setEditingCode(a.code);
+    setKtpError("");
+    // Ambil signed URL KTP bila sudah ada
+    setKtpPreview("");
+    if (cloudMode && a.code) {
+      const url = await getKtpUrl(a.code).catch(() => null);
+      if (url) setKtpPreview(url);
+    }
   };
 
   const setStatusAgen = async (a: Agent, status: Agent["status"]) => {
@@ -2342,6 +2403,63 @@ function AgenTab() {
             maxLength={80}
           />
         </label>
+        {/* Upload KTP agen (v10) */}
+        <div className="block sm:col-span-2 lg:col-span-4">
+          <span className="form-label">Foto KTP Agen</span>
+          <div className="mt-1 flex flex-wrap items-start gap-4">
+            {ktpPreview ? (
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={ktpPreview}
+                  alt={`KTP ${form.nama || "agen"}`}
+                  className="h-40 w-64 rounded-xl border border-slate-200 object-cover shadow-sm"
+                />
+                <button
+                  type="button"
+                  disabled={ktpBusy}
+                  onClick={handleKtpDelete}
+                  className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition hover:bg-red-600 disabled:opacity-40"
+                  aria-label="Hapus foto KTP"
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <label className={`flex h-40 w-64 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 text-slate-400 transition hover:border-brand/40 hover:text-brand ${ktpBusy ? "pointer-events-none opacity-60" : ""}`}>
+                <span className="text-3xl">📷</span>
+                <span className="text-xs font-semibold">
+                  {ktpBusy ? "Mengunggah…" : form.code ? "Klik untuk upload KTP" : "Simpan agen dulu, lalu upload KTP"}
+                </span>
+                <span className="text-[10px] text-slate-400">JPG/PNG/WebP, maks. 4 MB</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleKtpUpload}
+                  disabled={ktpBusy || !form.code}
+                  className="hidden"
+                />
+              </label>
+            )}
+            <div className="flex-1">
+              {ktpError && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
+                  {ktpError}
+                </p>
+              )}
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Foto KTP wajib diunggah untuk verifikasi identitas agen.
+                Hanya bisa dilihat oleh admin. Disimpan di Supabase Storage
+                bucket <code className="text-slate-600">agent-ktp</code>.
+              </p>
+              {!form.code && (
+                <p className="mt-1.5 text-[11px] font-semibold text-amber-600">
+                  ⚠ Simpan agen terlebih dahulu, lalu edit untuk upload KTP.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
         <label className="block">
           <span className="form-label">Mode Komisi</span>
           <select
@@ -2394,6 +2512,8 @@ function AgenTab() {
               onClick={() => {
                 setForm(EMPTY_AGENT_FORM);
                 setEditingCode(null);
+                setKtpPreview("");
+                setKtpError("");
               }}
               className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
             >
@@ -2432,6 +2552,7 @@ function AgenTab() {
                       ` · komisi khusus ${a.commissionPercent}%`}
                   {a.payTarget && ` · ${a.payMethod}: ${a.payTarget}`}
                   {` · ${a.totalKlik} klik`}
+                  {a.ktpUrl ? " · KTP ✓" : " · KTP belum diunggah"}
                 </p>
               </div>
               <span
@@ -2453,6 +2574,19 @@ function AgenTab() {
                 >
                   🔗 Tautan
                 </button>
+                {a.ktpUrl && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const url = await getKtpUrl(a.code).catch(() => null);
+                      if (url) window.open(url, "_blank");
+                      else flash("Gagal memuat foto KTP.");
+                    }}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:border-brand/40 hover:text-brand"
+                  >
+                    🪪 KTP
+                  </button>
+                )}
                 {a.status === "aktif" && (
                   <button
                     type="button"

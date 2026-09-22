@@ -145,6 +145,8 @@ export function rowToAgent(r: {
   commission_percent?: number | null;
   /** mode komisi (v9): murni penanda UI — perhitungan tetap di create_order */
   commission_mode?: string | null;
+  /** URL foto KTP agen (v10) */
+  ktp_url?: string | null;
   status?: string | null;
   total_klik?: number | null;
   created_at?: string | null;
@@ -162,6 +164,7 @@ export function rowToAgent(r: {
     status:
       r.status === "aktif" || r.status === "nonaktif" ? r.status : "pending",
     totalKlik: Number(r.total_klik ?? 0),
+    ktpUrl: r.ktp_url ?? undefined,
     createdAt: r.created_at ?? undefined,
   };
 }
