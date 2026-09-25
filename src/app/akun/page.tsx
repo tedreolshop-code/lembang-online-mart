@@ -494,7 +494,7 @@ export default function AkunPage() {
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25d366] px-4 py-3 text-sm font-bold text-white shadow transition hover:brightness-95 active:scale-[0.98]"
         >
           <ChatIcon className="h-4.5 w-4.5" />
-          Chat WhatsApp Warung
+          Chat Lembang Online Mart
         </a>
         <p className="mt-3 rounded-xl bg-brand-soft px-3 py-2.5 text-[11px] leading-relaxed text-brand-dark">
           Gratis ongkir untuk belanja di atas{" "}
