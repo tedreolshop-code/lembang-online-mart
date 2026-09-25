@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useCart, useCartLines } from "@/lib/cart";
 import {
   checkCoupon,
   createOrder,
-  fetchAgentPrices,
   saveCustomer,
   useAgentPrices,
   useAgentRef,
@@ -22,12 +21,9 @@ import {
   unitPriceWithAgent,
 } from "@/lib/pricing";
 import { normalizeAgentCode } from "@/lib/agent";
-import type { AgentPriceLine, PaymentMethod } from "@/lib/types";
+import type { PaymentMethod } from "@/lib/types";
 import ProductImage from "@/components/ProductImage";
 import { CheckIcon, TruckIcon } from "@/components/Icons";
-
-/** referensi kosong yang stabil (useMemo/useSyncExternalStore butuh ini) */
-const NO_AGENT_PRICES: AgentPriceLine[] = [];
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -58,45 +54,15 @@ export default function CheckoutPage() {
 
   // kode agen (v6): terisi otomatis bila pengujung datang dari link
   // referral — ?ref= ditangkap komponen RefCapture di layout & disimpan,
-  // di sini tinggal dibaca (plus masih bisa diketik manual)
+  // di sini tinggal dibaca (input manual di checkout sudah dihapus)
   const agentRef = useAgentRef();
-  const [agentTyped, setAgentTyped] = useState<string | null>(null);
-  const agentInput = agentTyped ?? agentRef ?? "";
+  const agentInput = agentRef ?? "";
   const agentInputCode = normalizeAgentCode(agentInput);
 
-  // harga khusus agen (v9): kode dari link sudah tersimpan di perangkat
-  // (hook), sedangkan kode yang diketik manual diambil dari server supaya
-  // harga yang terlihat sama dengan tagihan `create_order`
+  // harga khusus agen (v9): kode hanya datang dari link referral yang
+  // tersimpan di perangkat (hook), jadi harga tinggal dibaca dari sana
   const refAgentPrices = useAgentPrices();
-  // harga hasil ketikan disimpan bersama kodenya — kode lama otomatis
-  // diabaikan saat pembeli berganti kode (tanpa setState di badan efek)
-  const [typed, setTyped] = useState<{
-    code: string;
-    prices: AgentPriceLine[];
-  } | null>(null);
-  useEffect(() => {
-    if (!agentInputCode || agentInputCode === agentRef) return;
-    let alive = true;
-    // jeda kecil: pembeli masih mengetik kodenya
-    const t = setTimeout(() => {
-      void fetchAgentPrices(agentInputCode).then((p) => {
-        if (alive) setTyped({ code: agentInputCode, prices: p });
-      });
-    }, 400);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [agentInputCode, agentRef]);
-  const agentPrices = useMemo(
-    () =>
-      agentInputCode && agentInputCode === agentRef
-        ? refAgentPrices
-        : typed?.code === agentInputCode
-          ? typed.prices
-          : NO_AGENT_PRICES,
-    [agentInputCode, agentRef, refAgentPrices, typed],
-  );
+  const agentPrices = refAgentPrices;
 
   // voucher — ternikat pada subtotal saat dipasang; ganti isi keranjang
   // = voucher otomatis lepas (dihitung saat render, tanpa efek)
@@ -280,24 +246,6 @@ export default function CheckoutPage() {
               placeholder="cth: telur yang tidak retak ya"
               className="input"
             />
-          </Field>
-
-          <Field label="Kode Agen (opsional)">
-            <input
-              value={agentInput}
-              onChange={(e) =>
-                setAgentTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
-              }
-              placeholder="cth: AGABCD12 — bila kamu membeli lewat tautan agen"
-              className="input font-mono uppercase"
-              maxLength={12}
-            />
-            <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
-              Terisi otomatis bila kamu datang dari tautan referral agen.
-              Bila agennya punya harga khusus, harga itu langsung dipakai di
-              rincian pesanan. Komisi dicatat untuk agen yang kodenya valid
-              &amp; aktif.
-            </span>
           </Field>
 
           <Field label="Layanan Antar *">
