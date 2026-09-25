@@ -39,12 +39,16 @@ export default function Header() {
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-3 sm:px-6">
         {/* logo + nama toko */}
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
-          <Logo className="h-9 w-9" />
+          {/* badge putih agar logo (berwarna apa pun temanya) selalu terlihat
+              di atas header yang ikut warna tema */}
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white p-1.5 shadow-sm">
+            <Logo className="h-full w-full" />
+          </span>
           <span className="text-lg font-extrabold tracking-tight text-white sm:text-xl">
             Lembang{" "}
             {/* kelas (bukan inline style) → warna ikut CSS variables tema
                 yang sudah benar sejak paint pertama, tidak berubah setelah fetch */}
-            <span className="text-brand">Online Mart</span>
+            <span className="text-brand-soft">Online Mart</span>
           </span>
         </Link>
 
