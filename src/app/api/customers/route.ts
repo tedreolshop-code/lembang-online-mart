@@ -1,6 +1,7 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
 import { formatWaDigits } from "@/lib/config";
 import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { hashSecret } from "@/lib/password";
 
 /** Batas pendaftaran per IP: nomor HP Indonesia bisa ditebak berurutan, jadi
     tanpa batas ini seseorang bisa memetakan pelanggan lewat percobaan massal. */
@@ -8,7 +9,7 @@ const DAFTAR_LIMIT = { max: 5, windowMs: 10 * 60 * 1000 };
 
 /** Tabel customers — No. WA sebagai identitas utama (bukan email).
 
-  POST /api/customers  →  daftar pelanggan baru
+  POST /api/customers  →  daftar pelanggan baru (nomor + nama + password)
 
   CATATAN KEAMANAN
   Sempat ada `GET /api/customers?phone=628xxx` yang mengembalikan nama +
@@ -24,7 +25,7 @@ function cleanPhone(raw: string): string | null {
   return digits.length >= 8 ? digits : null;
 }
 
-/** POST: daftar pelanggan baru (No. WA + nama + alamat).
+/** POST: daftar pelanggan baru (No. WA + nama + password).
 
     SENGAJA TIDAK menimpa pelanggan yang sudah terdaftar. Dulu operasinya
     `upsert` tanpa verifikasi apa pun, sehingga siapa pun bisa mengisi nomor
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
   const phone = cleanPhone(String(body.phone ?? ""));
   const name = String(body.name ?? "").trim().slice(0, 80);
   const address = String(body.address ?? "").trim().slice(0, 300);
+  const password = String(body.password ?? "");
 
   if (!phone) {
     return Response.json({ error: "Nomor WhatsApp tidak valid." }, { status: 400 });
@@ -52,11 +54,18 @@ export async function POST(req: Request) {
   if (!name) {
     return Response.json({ error: "Nama wajib diisi." }, { status: 400 });
   }
+  if (password.length < 6) {
+    return Response.json(
+      { error: "Password minimal 6 karakter." },
+      { status: 400 },
+    );
+  }
 
   const row = {
     phone,
     name,
     address,
+    password_hash: hashSecret(password),
     updated_at: new Date().toISOString(),
   };
 

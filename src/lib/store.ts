@@ -737,58 +737,34 @@ export function useCustomerAuth(): Customer | null {
 export interface CustomerLoginResult {
   customer: Customer;
   isNew: boolean;
-  /** Nomor sudah pernah dipakai: profil disimpan di perangkat ini saja,
-      tidak ada baris baru di server. Bukan kegagalan. */
-  localOnly?: boolean;
 }
 
-/** Daftar atau masuk sebagai pelanggan.
-    Cloud: daftarkan nomor baru ke tabel customers.
-    Lokal: simpan di localStorage.
-
-    Nomor yang SUDAH terdaftar (409) sengaja tidak diperlakukan sebagai gagal.
-    Tanpa OTP, tidak ada cara memastikan nomor itu benar milik pemanggil, jadi
-    server menolak menimpa dan tidak mengirim data tersimpan. Karena profil
-    pelanggan memang hanya berguna di perangkat ini (checkout terisi dari
-    localStorage, riwayat pesanan pakai kode pesanan), permintaan diteruskan
-    secara lokal supaya pelanggan lama tidak menemui jalan buntu. */
-export async function customerLogin(
+/** Daftar akun pelanggan baru (No. WA + nama + password).
+    Lokal (tanpa Supabase): simpan di localStorage seperti sebelumnya. */
+export async function customerRegister(
   phone: string,
   name: string,
   address: string,
+  password: string,
 ): Promise<CustomerLoginResult> {
-  // pakai normalisasi yang sama dengan server (0… → 62…), supaya nomor yang
-  // tersimpan dari jalur mana pun seragam
   const cleanPhone = formatWaDigits(phone);
   if (cloudMode) {
-    try {
-      const res = await api<{
-        ok: boolean;
-        customer: Customer;
-        isNew: boolean;
-      }>("/api/customers", {
-        method: "POST",
-        body: JSON.stringify({ phone: cleanPhone, name, address }),
-      });
-      writeCustomerAuth(res.customer);
-      // simpan juga ke data pengiriman agar checkout terisi otomatis
-      saveCustomer({
-        name: res.customer.name,
-        phone: res.customer.phone,
-        address: res.customer.address,
-      });
-      return { customer: res.customer, isNew: res.isNew };
-    } catch (err) {
-      if (!(err instanceof ApiError) || err.status !== 409) throw err;
-      const customer: Customer = {
+    const res = await api<{
+      ok: boolean;
+      customer: Customer;
+      isNew: boolean;
+    }>("/api/customers", {
+      method: "POST",
+      body: JSON.stringify({
         phone: cleanPhone,
-        name: name.trim(),
-        address: address.trim(),
-      };
-      writeCustomerAuth(customer);
-      saveCustomer(customer);
-      return { customer, isNew: false, localOnly: true };
-    }
+        name,
+        address,
+        password,
+      }),
+    });
+    writeCustomerAuth(res.customer);
+    saveCustomer(res.customer);
+    return { customer: res.customer, isNew: res.isNew };
   }
   const customer: Customer = {
     phone: cleanPhone,
@@ -797,7 +773,61 @@ export async function customerLogin(
   };
   writeCustomerAuth(customer);
   saveCustomer(customer);
-  return { customer, isNew: false };
+  return { customer, isNew: true };
+}
+
+/** Masuk pelanggan dengan No. WA + password.
+    Gagal melempar ApiError berisi pesan siap tampil. */
+export async function customerLogin(
+  phone: string,
+  password: string,
+): Promise<CustomerLoginResult> {
+  const cleanPhone = formatWaDigits(phone);
+  if (cloudMode) {
+    const res = await api<{
+      ok: boolean;
+      customer: Customer;
+    }>("/api/customers/login", {
+      method: "POST",
+      body: JSON.stringify({ phone: cleanPhone, password }),
+    });
+    writeCustomerAuth(res.customer);
+    saveCustomer(res.customer);
+    return { customer: res.customer, isNew: false };
+  }
+  // mode lokal: tidak ada penyimpanan password — anggap gagal
+  throw new Error("Mode lokal belum mendukung password.");
+}
+
+/** Langkah 1 lupa password: minta kode reset.
+    Return link wa.me berisi kode — dibuka di WhatsApp milik pelanggan. */
+export async function customerRequestReset(
+  phone: string,
+): Promise<string> {
+  const res = await api<{ ok: boolean; waLink: string }>(
+    "/api/customers/reset",
+    {
+      method: "POST",
+      body: JSON.stringify({ phone: formatWaDigits(phone) }),
+    },
+  );
+  return res.waLink;
+}
+
+/** Langkah 2 lupa password: pasang password baru memakai kode reset. */
+export async function customerResetPassword(
+  phone: string,
+  code: string,
+  password: string,
+): Promise<void> {
+  await api("/api/customers/reset", {
+    method: "POST",
+    body: JSON.stringify({
+      phone: formatWaDigits(phone),
+      code,
+      password,
+    }),
+  });
 }
 
 /** Logout pelanggan (hapus sesi di perangkat ini, data tetap di server). */

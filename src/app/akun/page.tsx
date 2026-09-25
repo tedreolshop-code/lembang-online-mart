@@ -6,6 +6,9 @@ import { useCart } from "@/lib/cart";
 import {
   customerLogin,
   customerLogout,
+  customerRegister,
+  customerRequestReset,
+  customerResetPassword,
   forgetCustomer,
   saveCustomer,
   useAgentRef,
@@ -32,8 +35,9 @@ import {
 } from "@/components/Icons";
 
 /** Halaman Akun: pusat menu pelanggan.
-    Login: No. WA + nama (tanpa OTP). Data tersimpan di database (mode cloud)
-    sehingga riwayat pesanan & data pengiriman ikut lintas perangkat. */
+    Daftar: No. WA + nama + password (tersimpan di database mode cloud).
+    Masuk: No. WA + password. Lupa password: kode reset dikirim ke
+    WhatsApp pelanggan sendiri lewat wa.me. */
 export default function AkunPage() {
   const settings = useSettings();
   const orders = useOrders();
@@ -44,12 +48,21 @@ export default function AkunPage() {
   const saved = useSavedCustomer();
   const customer = useCustomerAuth();
 
+  // "masuk" = login dengan password; "daftar" = buat akun baru;
+  // "lupa1" = minta kode; "lupa2" = pasang password baru dengan kode
+  const [mode, setMode] = useState<"masuk" | "daftar" | "lupa1" | "lupa2">(
+    "masuk",
+  );
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginForm, setLoginForm] = useState({
     name: "",
     phone: "",
     address: "",
+    password: "",
+    password2: "",
+    code: "",
   });
+  const [resetWaLink, setResetWaLink] = useState("");
   const [loginMsg, setLoginMsg] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -71,34 +84,109 @@ export default function AkunPage() {
     setLoginForm({
       name: saved?.name ?? "",
       phone: saved?.phone ?? "",
-      address: saved?.address ?? "",
+      address: "",
+      password: "",
+      password2: "",
+      code: "",
     });
+    setMode("masuk");
+    setResetWaLink("");
     setLoginMsg("");
     setLoginErr("");
     setLoginOpen(true);
   };
 
-  const submitLogin = async () => {
-    if (!loginForm.name.trim() || !loginForm.phone.trim()) {
-      setLoginErr("Nama dan No. WhatsApp wajib diisi.");
+  const submitMasuk = async () => {
+    if (!loginForm.phone.trim() || !loginForm.password) {
+      setLoginErr("Nomor WhatsApp dan password wajib diisi.");
       return;
     }
     setLoading(true);
     setLoginErr("");
     try {
-      const { isNew, localOnly } = await customerLogin(
+      await customerLogin(loginForm.phone, loginForm.password);
+      setLoginMsg("Login berhasil!");
+      setLoginOpen(false);
+    } catch (err) {
+      setLoginErr(err instanceof Error ? err.message : "Gagal. Coba lagi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitDaftar = async () => {
+    if (!loginForm.name.trim() || !loginForm.phone.trim()) {
+      setLoginErr("Nama dan No. WhatsApp wajib diisi.");
+      return;
+    }
+    if (loginForm.password.length < 6) {
+      setLoginErr("Password minimal 6 karakter.");
+      return;
+    }
+    if (loginForm.password !== loginForm.password2) {
+      setLoginErr("Konfirmasi password tidak sama.");
+      return;
+    }
+    setLoading(true);
+    setLoginErr("");
+    try {
+      await customerRegister(
         loginForm.phone,
         loginForm.name,
         loginForm.address,
+        loginForm.password,
       );
-      setLoginMsg(
-        localOnly
-          ? "Nomor ini sudah pernah dipakai. Data pengiriman disimpan di perangkat ini saja."
-          : isNew
-            ? "Pendaftaran berhasil! Akunmu siap."
-            : "Login berhasil!",
-      );
+      setLoginMsg("Pendaftaran berhasil! Akunmu siap.");
       setLoginOpen(false);
+    } catch (err) {
+      setLoginErr(err instanceof Error ? err.message : "Gagal. Coba lagi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitMintaKode = async () => {
+    if (!loginForm.phone.trim()) {
+      setLoginErr("Masukkan nomor WhatsApp kamu dulu.");
+      return;
+    }
+    setLoading(true);
+    setLoginErr("");
+    try {
+      const waLink = await customerRequestReset(loginForm.phone);
+      setResetWaLink(waLink);
+      setMode("lupa2");
+    } catch (err) {
+      setLoginErr(err instanceof Error ? err.message : "Gagal. Coba lagi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitPasswordBaru = async () => {
+    if (loginForm.code.replace(/\D/g, "").length !== 6) {
+      setLoginErr("Kode reset harus 6 digit.");
+      return;
+    }
+    if (loginForm.password.length < 6) {
+      setLoginErr("Password minimal 6 karakter.");
+      return;
+    }
+    if (loginForm.password !== loginForm.password2) {
+      setLoginErr("Konfirmasi password tidak sama.");
+      return;
+    }
+    setLoading(true);
+    setLoginErr("");
+    try {
+      await customerResetPassword(
+        loginForm.phone,
+        loginForm.code,
+        loginForm.password,
+      );
+      setMode("masuk");
+      setLoginForm({ ...loginForm, code: "", password: "", password2: "" });
+      setLoginMsg("Password baru tersimpan! Silakan masuk.");
     } catch (err) {
       setLoginErr(err instanceof Error ? err.message : "Gagal. Coba lagi.");
     } finally {
@@ -186,68 +274,323 @@ export default function AkunPage() {
 
         {loginOpen && (
           <div className="mt-3 space-y-3 rounded-xl bg-white/10 p-4">
-            <h3 className="text-sm font-bold text-white">
-              Masuk atau Daftar
-            </h3>
-            <p className="text-[11px] leading-relaxed text-white/70">
-              Cukup masukkan No. WhatsApp dan nama — tanpa OTP, tanpa ribet.
-              Data pesananmu akan ikut di mana pun kamu masuk.
-            </p>
-            <label className="block text-xs font-bold text-white/90">
-              Nama Lengkap *
-              <input
-                value={loginForm.name}
-                onChange={(e) =>
-                  setLoginForm({ ...loginForm, name: e.target.value })
-                }
-                placeholder="cth: Budi Santoso"
-                className="input mt-1"
-              />
-            </label>
-            <label className="block text-xs font-bold text-white/90">
-              Nomor WhatsApp *
-              <input
-                value={loginForm.phone}
-                onChange={(e) =>
-                  setLoginForm({ ...loginForm, phone: e.target.value })
-                }
-                placeholder="cth: 0812xxxxxxx"
-                inputMode="tel"
-                className="input mt-1"
-              />
-            </label>
-            <label className="block text-xs font-bold text-white/90">
-              Alamat (opsional)
-              <textarea
-                value={loginForm.address}
-                onChange={(e) =>
-                  setLoginForm({ ...loginForm, address: e.target.value })
-                }
-                placeholder="Nama jalan, RT/RW, desa/dusun, patokan…"
-                rows={2}
-                className="input mt-1 resize-none"
-              />
-            </label>
-            {loginErr && (
-              <p className="text-xs font-semibold text-red-300">{loginErr}</p>
+            {mode === "masuk" && (
+              <>
+                <h3 className="text-sm font-bold text-white">Masuk</h3>
+                <p className="text-[11px] leading-relaxed text-white/70">
+                  Masukkan No. WhatsApp dan password akunmu. Data pesananmu
+                  ikut di mana pun kamu masuk.
+                </p>
+                <label className="block text-xs font-bold text-white/90">
+                  Nomor WhatsApp *
+                  <input
+                    value={loginForm.phone}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, phone: e.target.value })
+                    }
+                    placeholder="cth: 0812xxxxxxx"
+                    inputMode="tel"
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-white/90">
+                  Password *
+                  <input
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, password: e.target.value })
+                    }
+                    placeholder="Password akunmu"
+                    className="input mt-1"
+                  />
+                </label>
+                {loginErr && (
+                  <p className="text-xs font-semibold text-red-300">
+                    {loginErr}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={submitMasuk}
+                    disabled={loading}
+                    className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark disabled:opacity-60"
+                  >
+                    {loading ? "Memproses…" : "Masuk"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginOpen(false)}
+                    className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10"
+                  >
+                    Batal
+                  </button>
+                </div>
+                <div className="flex justify-between text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("lupa1");
+                      setLoginErr("");
+                    }}
+                    className="text-white/80 underline hover:text-white"
+                  >
+                    Lupa password?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("daftar");
+                      setLoginErr("");
+                    }}
+                    className="text-white/80 underline hover:text-white"
+                  >
+                    Belum punya akun? Daftar
+                  </button>
+                </div>
+              </>
             )}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={submitLogin}
-                disabled={loading}
-                className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark disabled:opacity-60"
-              >
-                {loading ? "Memproses…" : "Masuk / Daftar"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginOpen(false)}
-                className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10"
-              >
-                Batal
-              </button>
-            </div>
+
+            {mode === "daftar" && (
+              <>
+                <h3 className="text-sm font-bold text-white">Daftar Akun</h3>
+                <p className="text-[11px] leading-relaxed text-white/70">
+                  Buat akun dengan No. WhatsApp + password. Data pesananmu
+                  aman dan bisa diakses dari perangkat mana pun.
+                </p>
+                <label className="block text-xs font-bold text-white/90">
+                  Nama Lengkap *
+                  <input
+                    value={loginForm.name}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, name: e.target.value })
+                    }
+                    placeholder="cth: Budi Santoso"
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-white/90">
+                  Nomor WhatsApp *
+                  <input
+                    value={loginForm.phone}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, phone: e.target.value })
+                    }
+                    placeholder="cth: 0812xxxxxxx"
+                    inputMode="tel"
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-white/90">
+                  Password * (min. 6 karakter)
+                  <input
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, password: e.target.value })
+                    }
+                    placeholder="Buat password"
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-white/90">
+                  Ulangi Password *
+                  <input
+                    type="password"
+                    value={loginForm.password2}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, password2: e.target.value })
+                    }
+                    placeholder="Ulangi password"
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-white/90">
+                  Alamat (opsional)
+                  <textarea
+                    value={loginForm.address}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, address: e.target.value })
+                    }
+                    placeholder="Nama jalan, RT/RW, desa/dusun, patokan…"
+                    rows={2}
+                    className="input mt-1 resize-none"
+                  />
+                </label>
+                {loginErr && (
+                  <p className="text-xs font-semibold text-red-300">
+                    {loginErr}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={submitDaftar}
+                    disabled={loading}
+                    className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark disabled:opacity-60"
+                  >
+                    {loading ? "Memproses…" : "Daftar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoginOpen(false)}
+                    className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10"
+                  >
+                    Batal
+                  </button>
+                </div>
+                <div className="text-right text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("masuk");
+                      setLoginErr("");
+                    }}
+                    className="text-white/80 underline hover:text-white"
+                  >
+                    Sudah punya akun? Masuk
+                  </button>
+                </div>
+              </>
+            )}
+
+            {mode === "lupa1" && (
+              <>
+                <h3 className="text-sm font-bold text-white">Lupa Password</h3>
+                <p className="text-[11px] leading-relaxed text-white/70">
+                  Masukkan nomor WhatsApp kamu. Kami buatkan kode reset yang
+                  dikirim lewat WhatsApp ke nomormu sendiri.
+                </p>
+                <label className="block text-xs font-bold text-white/90">
+                  Nomor WhatsApp *
+                  <input
+                    value={loginForm.phone}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, phone: e.target.value })
+                    }
+                    placeholder="cth: 0812xxxxxxx"
+                    inputMode="tel"
+                    className="input mt-1"
+                  />
+                </label>
+                {loginErr && (
+                  <p className="text-xs font-semibold text-red-300">
+                    {loginErr}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={submitMintaKode}
+                    disabled={loading}
+                    className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark disabled:opacity-60"
+                  >
+                    {loading ? "Memproses…" : "Kirim Kode Reset"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("masuk");
+                      setLoginErr("");
+                    }}
+                    className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </>
+            )}
+
+            {mode === "lupa2" && (
+              <>
+                <h3 className="text-sm font-bold text-white">
+                  Password Baru
+                </h3>
+                <p className="text-[11px] leading-relaxed text-white/70">
+                  1. Tekan tombol <b>Buka WhatsApp</b> — kode reset otomatis
+                  muncul di pesan ke nomormu sendiri, kirim pesannya.
+                  <br />
+                  2. Lihat kode di WhatsApp, lalu masukkan di bawah beserta
+                  password barumu.
+                </p>
+                {resetWaLink ? (
+                  <a
+                    href={resetWaLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-xl bg-[#25d366] px-4 py-2.5 text-center text-sm font-bold text-white shadow transition hover:brightness-95"
+                  >
+                    Buka WhatsApp — Ambil Kode
+                  </a>
+                ) : (
+                  <p className="text-[11px] text-white/70">
+                    Kode belum dibuat — kembali dan minta kode dulu.
+                  </p>
+                )}
+                <label className="block text-xs font-bold text-white/90">
+                  Kode Reset (6 digit) *
+                  <input
+                    value={loginForm.code}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, code: e.target.value })
+                    }
+                    placeholder="cth: 482913"
+                    inputMode="numeric"
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-white/90">
+                  Password Baru * (min. 6 karakter)
+                  <input
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, password: e.target.value })
+                    }
+                    placeholder="Password baru"
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="block text-xs font-bold text-white/90">
+                  Ulangi Password Baru *
+                  <input
+                    type="password"
+                    value={loginForm.password2}
+                    onChange={(e) =>
+                      setLoginForm({ ...loginForm, password2: e.target.value })
+                    }
+                    placeholder="Ulangi password baru"
+                    className="input mt-1"
+                  />
+                </label>
+                {loginErr && (
+                  <p className="text-xs font-semibold text-red-300">
+                    {loginErr}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={submitPasswordBaru}
+                    disabled={loading}
+                    className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark disabled:opacity-60"
+                  >
+                    {loading ? "Memproses…" : "Simpan Password Baru"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("masuk");
+                      setLoginErr("");
+                    }}
+                    className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
