@@ -11,5 +11,10 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  // overflow-x-auto: konten admin yang lebih lebar dari layar (tabel,
+  // baris detail) tetap bisa digeser di HP — body memakai overflow-x: clip
+  // untuk hero toko, jadi tanpa wrapper ini konten lebar terpotong percuma.
+  return (
+    <div className="w-full overflow-x-auto overscroll-x-contain">{children}</div>
+  );
 }

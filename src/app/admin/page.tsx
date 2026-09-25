@@ -621,8 +621,8 @@ function ProdukTab({ initialCategory }: { initialCategory?: string }) {
         />
       )}
 
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto overscroll-x-contain rounded-xl bg-white shadow-sm">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
             <tr>
               <th className="px-3 py-2.5">Produk</th>
@@ -1108,8 +1108,8 @@ function StokTab() {
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto overscroll-x-contain rounded-xl bg-white shadow-sm">
+        <table className="w-full min-w-[560px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
             <tr>
               <th className="px-3 py-2.5">Produk</th>
@@ -1151,11 +1151,13 @@ function StatCard({
           : "text-slate-400"
         : "text-slate-800";
   return (
-    <div className="rounded-xl bg-white p-3 text-center shadow-sm">
-      <div className={`text-xl font-extrabold ${toneClass}`}>
+    <div className="min-w-0 rounded-xl bg-white p-3 text-center shadow-sm">
+      <div className={`truncate text-xl font-extrabold ${toneClass}`}>
         {isRupiah ? formatRupiah(value) : value}
       </div>
-      <div className="text-[11px] font-semibold text-slate-400">{label}</div>
+      <div className="truncate text-[11px] font-semibold text-slate-400">
+        {label}
+      </div>
     </div>
   );
 }
@@ -1348,8 +1350,8 @@ function LaporanTab() {
           Belum ada penjualan pada periode ini. 📈
         </div>
       ) : (
-        <div className="max-w-xl overflow-hidden rounded-xl bg-white shadow-sm">
-          <table className="w-full text-left text-sm">
+        <div className="max-w-xl overflow-x-auto overscroll-x-contain rounded-xl bg-white shadow-sm">
+          <table className="w-full min-w-[420px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-3 py-2.5">Produk</th>
@@ -1426,7 +1428,7 @@ function PesananTab() {
         <div key={o.id} className="rounded-xl bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span className="font-mono font-extrabold text-slate-800">
+              <span className="break-all font-mono font-extrabold text-slate-800">
                 {o.id}
               </span>
               <span className="ml-2 text-xs text-slate-400">
@@ -2675,8 +2677,8 @@ function AgenTab() {
           )}
 
         {priceAgent && (
-          <div className="mt-3 overflow-hidden rounded-lg border border-slate-100">
-            <table className="w-full text-left text-sm">
+          <div className="mt-3 overflow-x-auto overscroll-x-contain rounded-lg border border-slate-100">
+            <table className="w-full min-w-[520px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
                   <th className="px-3 py-2">Produk</th>
