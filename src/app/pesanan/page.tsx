@@ -215,6 +215,15 @@ function RiwayatTab({
                       {" "}· 🎟 −{formatRupiah(o.discount)}
                     </span>
                   )}
+                  {/* pesanan transfer: ingatkan lagi tujuan rekeningnya */}
+                  {o.payment !== "COD" &&
+                    settings.paymentMethods?.find((m) => m.label === o.payment)
+                      ?.detail && (
+                      <br />
+                    )}
+                  {o.payment !== "COD" &&
+                    settings.paymentMethods?.find((m) => m.label === o.payment)
+                      ?.detail}
                   <br />
                   {o.customer.name} · {o.customer.phone}
                 </span>
@@ -365,10 +374,29 @@ function PaymentChooser({
   };
 
   if (sudahPilih) {
+    // metode transfer: tampilkan lagi nomor rekening + instruksinya —
+    // kalau tidak, customer sudah memilih tapi tidak tahu transfer ke mana
+    const metodeTransfer = methods.find((m) => m.label === current);
     return (
-      <p className="mt-3 inline-block rounded-full bg-white px-4 py-1.5 text-sm font-bold text-emerald-700 shadow-sm">
-        💳 Pembayaran: {current}
-      </p>
+      <div className="mt-3 text-left">
+        <p className="inline-block rounded-full bg-white px-4 py-1.5 text-sm font-bold text-emerald-700 shadow-sm">
+          💳 Pembayaran: {current}
+        </p>
+        {metodeTransfer && (metodeTransfer.detail || metodeTransfer.note) && (
+          <div className="mt-2 rounded-xl bg-white p-4 shadow-sm">
+            {metodeTransfer.detail && (
+              <p className="text-sm font-bold text-slate-800">
+                {current} → {metodeTransfer.detail}
+              </p>
+            )}
+            {metodeTransfer.note && (
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                {metodeTransfer.note}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     );
   }
 
