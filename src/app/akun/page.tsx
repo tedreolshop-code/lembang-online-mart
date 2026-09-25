@@ -9,6 +9,7 @@ import {
   forgetCustomer,
   saveCustomer,
   useAgentRef,
+  useAgenAuth,
   useCustomerAuth,
   useFavorites,
   useOrders,
@@ -39,6 +40,7 @@ export default function AkunPage() {
   const favorites = useFavorites();
   const { count, ready } = useCart();
   const agentRef = useAgentRef();
+  const agenAuth = useAgenAuth();
   const saved = useSavedCustomer();
   const customer = useCustomerAuth();
 
@@ -403,32 +405,35 @@ export default function AkunPage() {
         />
       </section>
 
-      {/* daftar agen */}
-      <section className="rounded-2xl bg-brand-soft p-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🤝</span>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-bold text-brand-dark">
-              Program Agen Lembang
-            </h2>
-            <p className="mt-0.5 text-xs text-brand-dark/80">
-              Dapat komisi dari setiap pesanan lewat link referral-mu
-            </p>
+      {/* daftar agen — hanya untuk agen yang login di perangkat ini,
+          tidak ditampilkan ke pelanggan umum */}
+      {agenAuth && (
+        <section className="rounded-2xl bg-brand-soft p-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🤝</span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-bold text-brand-dark">
+                Program Agen Lembang
+              </h2>
+              <p className="mt-0.5 text-xs text-brand-dark/80">
+                Dapat komisi dari setiap pesanan lewat link referral-mu
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <Link
-            href="/agen/dashboard"
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-brand/30 bg-white px-4 py-2.5 text-sm font-bold text-brand transition hover:border-brand/50"
-          >
-            Dashboard Agen
-            <ChevronRightIcon className="h-4 w-4" />
-          </Link>
-        </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-brand-dark/70">
-          Pendaftaran agen melalui admin. Hubungi toko untuk mendaftar.
-        </p>
-      </section>
+          <div className="mt-3 flex gap-2">
+            <Link
+              href="/agen/dashboard"
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-brand/30 bg-white px-4 py-2.5 text-sm font-bold text-brand transition hover:border-brand/50"
+            >
+              Dashboard Agen
+              <ChevronRightIcon className="h-4 w-4" />
+            </Link>
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-brand-dark/70">
+            Pendaftaran agen melalui admin. Hubungi toko untuk mendaftar.
+          </p>
+        </section>
+      )}
 
       {agentRef && (
         <section className="flex items-start gap-2.5 rounded-2xl bg-brand-soft p-4 text-sm text-brand-dark">
