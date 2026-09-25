@@ -92,7 +92,11 @@ create table if not exists settings (
   color_primary   text not null default '#f97316',
   color_dark      text not null default '#b91c1c',
   logo_url        text not null default '',
-  banners         jsonb not null default '[]'::jsonb
+  banners         jsonb not null default '[]'::jsonb,
+  -- metode pembayaran (v11): dikelola dari Admin → Pengaturan
+  cod_enabled     boolean not null default true,
+  payment_methods jsonb not null default
+    '[{"id":"transfer","label":"Transfer Bank","detail":"BCA 1234567890 a.n. Lembang Store","note":"Kirim bukti transfer ke WhatsApp warung"}]'::jsonb
 );
 
 -- kredensial notifikasi (RAHASIA) dipisah agar tidak terbaca publik —

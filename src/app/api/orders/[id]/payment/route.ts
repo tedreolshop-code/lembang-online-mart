@@ -1,5 +1,6 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
-import { rowToOrder, orderWithoutCostPrice } from "@/lib/rows";
+import { rowToOrder, rowToSettings, orderWithoutCostPrice } from "@/lib/rows";
+import { DEFAULT_SETTINGS } from "@/lib/config";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -10,13 +11,34 @@ type Ctx = { params: Promise<{ id: string }> };
     - hanya kolom `payment` yang bisa diubah;
     - hanya pesanan channel "form" (pesanan WhatsApp tidak lewat sini);
     - hanya sekali: bila sudah bukan nilai awal "COD", ditolak (409);
-    - hanya nilai "COD" | "Transfer Bank" yang diterima. */
+    - hanya label metode yang terdaftar aktif di settings (COD atau salah
+      satu metode transfer/e-wallet dari Admin → Pengaturan). */
 export async function PATCH(req: Request, ctx: Ctx) {
   if (!isCloud) return cloudRequired();
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as { payment?: unknown };
 
-  if (body.payment !== "COD" && body.payment !== "Transfer Bank") {
+  const payment =
+    typeof body.payment === "string" ? body.payment.trim().slice(0, 60) : "";
+  if (!payment) {
+    return Response.json(
+      { error: "Metode pembayaran tidak dikenal." },
+      { status: 400 },
+    );
+  }
+
+  // validasi terhadap daftar metode aktif di settings
+  const { data: sRow } = await db()
+    .from("settings")
+    .select("cod_enabled, payment_methods")
+    .eq("id", 1)
+    .maybeSingle();
+  const s = sRow ? rowToSettings(sRow as never) : DEFAULT_SETTINGS;
+  const labelAktif = [
+    ...(s.codEnabled !== false ? ["COD"] : []),
+    ...s.paymentMethods.map((m) => m.label),
+  ];
+  if (!labelAktif.includes(payment)) {
     return Response.json(
       { error: "Metode pembayaran tidak dikenal." },
       { status: 400 },
@@ -47,7 +69,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const { error: uerr } = await db()
     .from("orders")
-    .update({ payment: body.payment })
+    .update({ payment })
     .eq("id", id);
   if (uerr) return Response.json({ error: uerr.message }, { status: 500 });
 

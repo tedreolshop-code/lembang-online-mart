@@ -1,5 +1,5 @@
 import type { Order, OrderItem, Product, ShipOption } from "./types";
-import type { BannerSlide, StoreSettings } from "./config";
+import type { BannerSlide, PaymentMethodOption, StoreSettings } from "./config";
 import { DEFAULT_BANNERS, DEFAULT_SETTINGS } from "./config";
 
 /** Mapper antara baris database (snake_case) dan tipe aplikasi (camelCase).
@@ -103,6 +103,9 @@ export interface SettingsRow {
   color_dark?: string | null;
   logo_url?: string | null;
   banners?: BannerSlide[] | null;
+  // metode pembayaran (v11) — bisa null bila migrasi belum dijalankan
+  cod_enabled?: boolean | null;
+  payment_methods?: unknown | null;
 }
 
 /** Normalisasi satu banner dari DB (bisa jsonb bentuk apa pun) */
@@ -120,9 +123,30 @@ function toBanner(b: unknown): BannerSlide | null {
   };
 }
 
+/** Normalisasi satu metode pembayaran dari DB (jsonb bentuk apa pun) */
+function toPaymentMethod(m: unknown): PaymentMethodOption | null {
+  if (!m || typeof m !== "object") return null;
+  const o = m as Record<string, unknown>;
+  const id = String(o.id ?? "").trim();
+  const label = String(o.label ?? "").trim();
+  if (!id || !label) return null;
+  return {
+    id,
+    label,
+    detail: String(o.detail ?? ""),
+    note: String(o.note ?? ""),
+  };
+}
+
 export function rowToSettings(r: SettingsRow): StoreSettings {
   const banners = Array.isArray(r.banners)
     ? r.banners.map(toBanner).filter((b): b is BannerSlide => b !== null)
+    : [];
+  // kolom v11 mungkin belum ada bila sql/alter-v11.sql belum dijalankan
+  const paymentMethods = Array.isArray(r.payment_methods)
+    ? r.payment_methods
+        .map(toPaymentMethod)
+        .filter((m): m is PaymentMethodOption => m !== null)
     : [];
   return {
     name: r.name,
@@ -149,6 +173,14 @@ export function rowToSettings(r: SettingsRow): StoreSettings {
     colorDark: r.color_dark || DEFAULT_SETTINGS.colorDark,
     logoUrl: r.logo_url ?? "",
     banners: banners.length > 0 ? banners : DEFAULT_BANNERS,
+    codEnabled:
+      typeof r.cod_enabled === "boolean"
+        ? r.cod_enabled
+        : DEFAULT_SETTINGS.codEnabled,
+    paymentMethods:
+      paymentMethods.length > 0
+        ? paymentMethods
+        : DEFAULT_SETTINGS.paymentMethods,
   };
 }
 

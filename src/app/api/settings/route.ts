@@ -1,7 +1,7 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { rowToSettings } from "@/lib/rows";
 import { invalidateThemeCache } from "@/lib/server-theme";
-import { DEFAULT_BANNERS, DEFAULT_SETTINGS, type BannerSlide, type StoreSettings } from "@/lib/config";
+import { DEFAULT_BANNERS, DEFAULT_SETTINGS, type BannerSlide, type PaymentMethodOption, type StoreSettings } from "@/lib/config";
 import { readSecrets, writeSecrets } from "@/lib/notify-secrets";
 
 /** hex valid: #rgb atau #rrggbb → kembalikan null bila tidak valid */
@@ -31,6 +31,30 @@ function bannerList(v: unknown, fallback: BannerSlide[]): BannerSlide[] {
     .filter((b): b is BannerSlide => b !== null)
     .slice(0, 8);
   return out.length > 0 ? out : fallback;
+}
+
+/** bersihkan daftar metode pembayaran dari input admin */
+function paymentMethodList(
+  v: unknown,
+  fallback: PaymentMethodOption[],
+): PaymentMethodOption[] {
+  if (!Array.isArray(v)) return fallback;
+  const out = v
+    .map((m) => {
+      const o = (m ?? {}) as Record<string, unknown>;
+      const id = String(o.id ?? "").trim().slice(0, 40);
+      const label = String(o.label ?? "").trim().slice(0, 60);
+      if (!id || !label) return null;
+      return {
+        id,
+        label,
+        detail: String(o.detail ?? "").trim().slice(0, 200),
+        note: String(o.note ?? "").trim().slice(0, 200),
+      };
+    })
+    .filter((m): m is PaymentMethodOption => m !== null)
+    .slice(0, 8);
+  return out;
 }
 
 export async function GET(req: Request) {
@@ -85,10 +109,18 @@ export async function PUT(req: Request) {
     color_dark: hexColor(body.colorDark, DEFAULT_SETTINGS.colorDark),
     logo_url: body.logoUrl ? String(body.logoUrl) : "",
     banners: bannerList(body.banners, DEFAULT_BANNERS),
+    // pembayaran (v11): COD on/off + daftar metode transfer/e-wallet aktif.
+    // Daftar kosong berarti hanya COD (bila aktif) — sah.
+    cod_enabled: body.codEnabled === undefined ? DEFAULT_SETTINGS.codEnabled : !!body.codEnabled,
+    payment_methods: paymentMethodList(
+      body.paymentMethods,
+      DEFAULT_SETTINGS.paymentMethods,
+    ),
   };
 
-  // kolom v3/v4 mungkin belum ada bila SQL migrasi belum dijalankan —
+  // kolom v3/v4/v11 mungkin belum ada bila SQL migrasi belum dijalankan —
   // coba versi lengkap, lalu kurangi bertahap agar pengaturan dasar tetap tersimpan
+  const v11Keys = ["cod_enabled", "payment_methods"] as const;
   const v4Keys = ["xpress_ongkir", "xpress_label", "ongkir_note"] as const;
   const v3Keys = ["color_primary", "color_dark", "logo_url", "banners"] as const;
   const drop = (obj: Record<string, unknown>, keys: readonly string[]) => {
@@ -100,18 +132,24 @@ export async function PUT(req: Request) {
   let warning: string | undefined;
   let themeSaved = true;
   if (error) {
-    const partial = drop({ ...row }, v4Keys);
+    const partial = drop({ ...row }, v11Keys);
     error = (await db().from("settings").upsert(partial)).error;
     warning =
-      "Pengaturan Xpress/keterangan ongkir belum tersimpan di database — jalankan sql/alter-v4.sql di Supabase SQL Editor.";
+      "Pengaturan metode pembayaran belum tersimpan di database — jalankan sql/alter-v11.sql di Supabase SQL Editor.";
     if (error) {
-      themeSaved = false;
-      error = (await db().from("settings").upsert(drop(partial, v3Keys))).error;
-      warning = error
-        ? undefined
-        : "Pengaturan tampilan & Xpress/ongkir belum tersimpan di database — jalankan sql/alter-v3.sql dan sql/alter-v4.sql di Supabase SQL Editor.";
+      const partial2 = drop(partial, v4Keys);
+      error = (await db().from("settings").upsert(partial2)).error;
+      warning =
+        "Pengaturan Xpress/keterangan ongkir belum tersimpan di database — jalankan sql/alter-v4.sql di Supabase SQL Editor.";
       if (error) {
-        return Response.json({ error: error.message }, { status: 500 });
+        themeSaved = false;
+        error = (await db().from("settings").upsert(drop(partial2, v3Keys))).error;
+        warning = error
+          ? undefined
+          : "Pengaturan tampilan & Xpress/ongkir belum tersimpan di database — jalankan sql/alter-v3.sql dan sql/alter-v4.sql di Supabase SQL Editor.";
+        if (error) {
+          return Response.json({ error: error.message }, { status: 500 });
+        }
       }
     }
   }

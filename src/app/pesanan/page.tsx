@@ -320,7 +320,9 @@ function tandaiSudahPilihPembayaran(orderId: string): void {
 
 /** Pemilih metode pembayaran untuk pesanan form — muncul di banner sukses
     SETELAH pesanan dibuat (alur baru: checkout form tanpa kartu COD/Transfer,
-    metode dipilih di sini sekali saja). Pending state + error inline. */
+    metode dipilih di sini sekali saja). Pending state + error inline.
+    Metode yang tampil (COD & daftar transfer/e-wallet) diatur dari
+    Admin → Pengaturan; bila tak ada yang aktif, kartu tidak muncul. */
 function PaymentChooser({
   orderId,
   current,
@@ -328,7 +330,11 @@ function PaymentChooser({
   orderId: string;
   current: "COD" | "Transfer Bank";
 }) {
-  const [pilih, setPilih] = useState<"COD" | "Transfer Bank" | null>(null);
+  const settings = useSettings();
+  const codEnabled = settings.codEnabled !== false;
+  const methods = settings.paymentMethods ?? [];
+
+  const [pilih, setPilih] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   // Transfer Bank terlihat langsung dari data pesanan; COD perlu penanda
@@ -338,12 +344,16 @@ function PaymentChooser({
   );
   const sudahPilih = selesai;
 
-  const simpan = async (metode: "COD" | "Transfer Bank") => {
+  const simpan = async (metode: string) => {
     if (saving) return;
     setSaving(true);
     setError("");
     try {
-      await setOrderPayment(orderId, metode);
+      const metodeLabel =
+        metode === "cod"
+          ? "COD"
+          : methods.find((m) => m.id === metode)?.label ?? metode;
+      await setOrderPayment(orderId, metodeLabel as "COD" | "Transfer Bank");
       tandaiSudahPilihPembayaran(orderId);
       setSelesai(true);
       setPilih(null);
@@ -362,7 +372,14 @@ function PaymentChooser({
     );
   }
 
-  const metode = pilih ?? "COD";
+  // tidak ada metode aktif (COD off + daftar kosong) → kartu disembunyikan
+  if (!codEnabled && methods.length === 0) return null;
+
+  const metode = pilih ?? (codEnabled ? "cod" : methods[0].id);
+  const labelMetode =
+    metode === "cod"
+      ? "COD"
+      : methods.find((m) => m.id === metode)?.label ?? metode;
   return (
     <div className="mt-3 rounded-xl bg-white p-4 text-left shadow-sm">
       <p className="text-sm font-bold text-slate-800">💳 Metode Pembayaran</p>
@@ -370,38 +387,43 @@ function PaymentChooser({
         Pilih salah satu — pilihan tidak bisa diganti setelah ini.
       </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => setPilih("COD")}
-          className={`rounded-xl border-2 p-3 text-left transition ${
-            metode === "COD"
-              ? "border-brand bg-brand-soft"
-              : "border-slate-200 hover:border-brand/40"
-          }`}
-        >
-          <span className="block text-sm font-bold text-slate-800">
-            COD (Bayar di Tempat)
-          </span>
-          <span className="text-xs text-slate-500">
-            Bayar tunai saat barang tiba
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setPilih("Transfer Bank")}
-          className={`rounded-xl border-2 p-3 text-left transition ${
-            metode === "Transfer Bank"
-              ? "border-brand bg-brand-soft"
-              : "border-slate-200 hover:border-brand/40"
-          }`}
-        >
-          <span className="block text-sm font-bold text-slate-800">
-            Transfer Bank
-          </span>
-          <span className="text-xs text-slate-500">
-            BCA 1234567890 a.n. Lembang Store
-          </span>
-        </button>
+        {codEnabled && (
+          <button
+            type="button"
+            onClick={() => setPilih("cod")}
+            className={`rounded-xl border-2 p-3 text-left transition ${
+              metode === "cod"
+                ? "border-brand bg-brand-soft"
+                : "border-slate-200 hover:border-brand/40"
+            }`}
+          >
+            <span className="block text-sm font-bold text-slate-800">
+              COD (Bayar di Tempat)
+            </span>
+            <span className="text-xs text-slate-500">
+              Bayar tunai saat barang tiba
+            </span>
+          </button>
+        )}
+        {methods.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setPilih(m.id)}
+            className={`rounded-xl border-2 p-3 text-left transition ${
+              metode === m.id
+                ? "border-brand bg-brand-soft"
+                : "border-slate-200 hover:border-brand/40"
+            }`}
+          >
+            <span className="block text-sm font-bold text-slate-800">
+              {m.label}
+            </span>
+            {m.detail && (
+              <span className="text-xs text-slate-500">{m.detail}</span>
+            )}
+          </button>
+        ))}
       </div>
       {error && (
         <p className="mt-2 text-xs font-semibold text-brand">{error}</p>
@@ -412,8 +434,19 @@ function PaymentChooser({
         disabled={saving}
         className="mt-3 w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white shadow transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
       >
-        {saving ? "Menyimpan…" : `Pakai ${metode}`}
+        {saving ? "Menyimpan…" : `Pakai ${labelMetode}`}
       </button>
+      {(() => {
+        const aktif =
+          metode === "cod"
+            ? null
+            : methods.find((m) => m.id === metode) ?? null;
+        return aktif?.note ? (
+          <p className="mt-2 rounded-lg bg-slate-50 p-2.5 text-[11px] leading-relaxed text-slate-500">
+            {aktif.note}
+          </p>
+        ) : null;
+      })()}
     </div>
   );
 }

@@ -31,6 +31,12 @@ export interface StoreSettings {
   /** Discord: webhook URL (https://discord.com/api/webhooks/…) */
   discordWebhook: string;
 
+  /* ── pembayaran (Admin → tab Pengaturan) ────────────────────── */
+  /** metode COD (bayar di tempat) aktif & tampil di pemilihan pembayaran */
+  codEnabled: boolean;
+  /** daftar metode transfer/e-wallet (Bank, DANA, OVO, …) yang aktif */
+  paymentMethods: PaymentMethodOption[];
+
   /* ── tampilan (Admin → tab Tampilan) ────────────────────────── */
   /** warna utama: tombol, harga, badge, aksen (default oranye) */
   colorPrimary: string;
@@ -40,6 +46,19 @@ export interface StoreSettings {
   logoUrl: string;
   /** slide banner promo di beranda */
   banners: BannerSlide[];
+}
+
+/** Satu metode pembayaran non-COD (transfer bank / e-wallet) yang dipilih
+    pembeli setelah pesanan dibuat. Dikelola pemilik dari Admin → Pengaturan. */
+export interface PaymentMethodOption {
+  /** id stabil untuk memetakan pilihan ke pesanan ("transfer", "dana", …) */
+  id: string;
+  /** nama yang tampil ke pembeli, mis. "Transfer Bank" / "DANA" */
+  label: string;
+  /** detail tujuan: nomor rekening/HP + nama pemilik, mis. "BCA 1234567890 a.n. Budi" */
+  detail: string;
+  /** instruksi singkat setelah memilih, mis. "Kirim bukti transfer ke WA" */
+  note: string;
 }
 
 /** Satu slide banner promo di beranda */
@@ -99,6 +118,15 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   notifyToken: "",
   notifyTarget: "",
   discordWebhook: "",
+  codEnabled: true,
+  paymentMethods: [
+    {
+      id: "transfer",
+      label: "Transfer Bank",
+      detail: "BCA 1234567890 a.n. Lembang Store",
+      note: "Kirim bukti transfer ke WhatsApp warung",
+    },
+  ],
   colorPrimary: "#dc2626",
   colorDark: "#991b1b",
   logoUrl: "",
@@ -149,6 +177,22 @@ export function normalizeSettings(raw: Partial<StoreSettings>): StoreSettings {
         : DEFAULT_SETTINGS.xpressLabel,
     ongkirNote:
       typeof merged.ongkirNote === "string" ? merged.ongkirNote : "",
+    codEnabled:
+      typeof merged.codEnabled === "boolean"
+        ? merged.codEnabled
+        : DEFAULT_SETTINGS.codEnabled,
+    paymentMethods: (Array.isArray(merged.paymentMethods)
+      ? merged.paymentMethods
+      : DEFAULT_SETTINGS.paymentMethods
+    )
+      .map((m) => ({
+        id: typeof m?.id === "string" && m.id.trim() ? m.id.trim().slice(0, 40) : "",
+        label: typeof m?.label === "string" ? m.label.trim().slice(0, 60) : "",
+        detail: typeof m?.detail === "string" ? m.detail.trim().slice(0, 200) : "",
+        note: typeof m?.note === "string" ? m.note.trim().slice(0, 200) : "",
+      }))
+      .filter((m) => m.id && m.label)
+      .slice(0, 8),
     banners:
       (Array.isArray(merged.banners) && merged.banners.length > 0
         ? merged.banners
