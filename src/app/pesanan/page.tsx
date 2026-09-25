@@ -327,6 +327,43 @@ function tandaiSudahPilihPembayaran(orderId: string): void {
   }
 }
 
+/** Tombol salin untuk nomor rekening/e-wallet. Menyalin HANYA angka
+    (urutan digit terpanjang di teks, mis. "BCA 1234567890 a.n. X" →
+    "1234567890"); tanpa angka cukup panjang, menyalin teks utuh. */
+function TombolSalin({ teks }: { teks: string }) {
+  const [tercopy, setTercopy] = useState(false);
+  const angka = teks.match(/\d[\d.\- ]*\d|\d/);
+  const nomor = angka
+    ? angka[0].replace(/[^\d]/g, "").length >= 8
+      ? angka[0].replace(/[^\d]/g, "")
+      : teks
+    : teks;
+  const salin = async () => {
+    try {
+      await navigator.clipboard.writeText(nomor);
+    } catch {
+      // fallback untuk browser tanpa Clipboard API (http/WebView lama)
+      const ta = document.createElement("textarea");
+      ta.value = nomor;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    setTercopy(true);
+    setTimeout(() => setTercopy(false), 1800);
+  };
+  return (
+    <button
+      type="button"
+      onClick={salin}
+      className="mt-2 inline-flex items-center gap-1.5 rounded-lg border-2 border-brand/30 bg-brand-soft px-3 py-1.5 text-xs font-bold text-brand-dark transition hover:border-brand"
+    >
+      {tercopy ? "✓ Tersalin!" : "📋 Salin nomor"}
+    </button>
+  );
+}
+
 /** Pemilih metode pembayaran untuk pesanan form — muncul di banner sukses
     SETELAH pesanan dibuat (alur baru: checkout form tanpa kartu COD/Transfer,
     metode dipilih di sini sekali saja). Pending state + error inline.
@@ -385,9 +422,12 @@ function PaymentChooser({
         {metodeTransfer && (metodeTransfer.detail || metodeTransfer.note) && (
           <div className="mt-2 rounded-xl bg-white p-4 shadow-sm">
             {metodeTransfer.detail && (
-              <p className="text-sm font-bold text-slate-800">
-                {current} → {metodeTransfer.detail}
-              </p>
+              <>
+                <p className="text-sm font-bold text-slate-800">
+                  {current} → {metodeTransfer.detail}
+                </p>
+                <TombolSalin teks={metodeTransfer.detail} />
+              </>
             )}
             {metodeTransfer.note && (
               <p className="mt-1 text-xs leading-relaxed text-slate-500">
