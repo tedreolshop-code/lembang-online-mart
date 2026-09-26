@@ -30,6 +30,35 @@ Untuk mode pengembangan (hot reload saat diubah-ubah): `npm run dev`.
 | Admin | `/admin` | Kelola kategori, produk, pesanan, voucher, agen & pengaturan (password demo lokal: `admin123`) |
 | Info | `/tentang`, `/cara-pesan` | Profil toko & panduan pemesanan (tab "Tentang"; juga ditautkan dari halaman Akun) |
 
+## Link Khusus via Subdomain (admin. & agen.)
+
+Login admin dan dashboard agen punya pintasan subdomain — URL bar tetap pendek
+karena memakai *rewrite*, bukan redirect:
+
+| Subdomain | Menuju |
+|---|---|
+| `admin.<domain>` | Halaman login admin (`/admin`) |
+| `agen.<domain>` | Login & dashboard agen (`/agen/dashboard`) |
+
+Path lama (`/admin`, `/agen/...`) tetap berfungsi di domain utama; subdomain
+hanya pintasan masuk. Halaman tetap dilindungi login masing-masing — subdomain
+bukan lapisan keamanan.
+
+### Cara mengaktifkan (sekali saja)
+
+1. **Vercel** → Project → *Settings* → *Domains* → tambahkan
+   `admin.<domain>` dan `agen.<domain>` (ganti `<domain>` dengan domain kamu).
+2. **DNS registrar** → tambahkan 2 record CNAME yang ditunjukkan Vercel,
+   biasanya:
+   ```
+   admin  CNAME  cname.vercel-dns.com
+   agen   CNAME  cname.vercel-dns.com
+   ```
+   Tunggu propagasi DNS (menit–jam); SSL diterbitkan otomatis oleh Vercel.
+3. **Env** → set `NEXT_PUBLIC_STORE_ORIGIN=https://<domain>` (lihat
+   `.env.example`) supaya link referral agen selalu menunjuk ke domain toko
+   utama, bukan ke subdomain tempat link disalin.
+
 ## Kelola Kategori
 
 Buka **Admin → 🗂️ Kategori** untuk menambah kategori atau mengedit nama,

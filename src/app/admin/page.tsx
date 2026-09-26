@@ -7,7 +7,7 @@ import { printOrderStruk } from "@/lib/printStruk";
 import { cloudMode, adminLogin, adminLogout, hasAdminSession, localLogin, authHeaders, verifyAdminSession } from "@/lib/auth";
 import { DEFAULT_SETTINGS, formatWaDigits, type StoreSettings } from "@/lib/config";
 import { formatRupiah, formatDateTime } from "@/lib/format";
-import { agentShareLink, DEFAULT_COMMISSION_SETTINGS, effectiveCommission, isCommissionReady } from "@/lib/agent";
+import { agentShareLink, storeOrigin, DEFAULT_COMMISSION_SETTINGS, effectiveCommission, isCommissionReady } from "@/lib/agent";
 import { normalizeTiers } from "@/lib/pricing";
 import { useCategoryCatalog, useCategories } from "@/lib/category-store";
 import CategoriesTab from "@/components/admin/CategoriesTab";
@@ -217,12 +217,22 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           ? Panduan Setup
         </button>
         <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-brand/40"
-          >
-            Lihat Toko
-          </Link>
+          {/* di subdomain admin.*, semua path diarahkan ke login — jadi tombol
+              keluar ke toko memakai domain utama dari env bila diset */}
+          {storeOrigin() ? (
+            <a
+              href={storeOrigin()}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-brand/40"
+            >
+              Lihat Toko
+            </a>
+          ) : (
+            <Link
+              href="/"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-brand/40"
+            >
+              Lihat Toko</Link>
+          )}
           <button
             type="button"
             onClick={async () => {
@@ -2190,10 +2200,11 @@ function AgenTab() {
   };
 
   const salinLink = async (a: Agent) => {
+    // domain toko dari env bila diset — jangan pakai origin subdomain admin
     const link =
       typeof window === "undefined"
         ? a.code
-        : agentShareLink(a.code, window.location.origin);
+        : agentShareLink(a.code, storeOrigin());
     try {
       await navigator.clipboard.writeText(link);
       flash(`Tautan referral ${a.code} disalin — tinggal dibagikan.`);

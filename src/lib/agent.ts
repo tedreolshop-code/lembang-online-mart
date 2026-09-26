@@ -100,9 +100,18 @@ export function isSelfPurchase(customerPhone: string, agentWa: string): boolean 
   return a !== "" && a === b;
 }
 
-/** Link referral agen. `origin` opsional agar bisa dipakai di server. */
+/** Origin domain utama toko (dipakai link referral agar selalu menunjuk
+    ke toko, bukan ke subdomain admin/agen tempat link dibuat). */
+export function storeOrigin(): string {
+  // env di-inline saat build — diubah lewat .env tanpa deploy ulang kode
+  return process.env.NEXT_PUBLIC_STORE_ORIGIN ?? "";
+}
+
+/** Link referral agen. `origin` opsional agar bisa dipakai di server.
+    Bila origin kosong, pakai domain toko dari env (fallback: origin halaman). */
 export function agentShareLink(code: string, origin = ""): string {
-  return `${origin}/?ref=${normalizeAgentCode(code)}`;
+  const base = origin || storeOrigin();
+  return `${base}/?ref=${normalizeAgentCode(code)}`;
 }
 
 /** Komisi dianggap siap dibayar bila pesanan sudah selesai (ready_at terisi)

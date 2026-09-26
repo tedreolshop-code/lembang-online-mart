@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { agenLogin, agenLogout, useAgenAuth } from "@/lib/store";
 import { formatRupiah, formatDateTime } from "@/lib/format";
-import { agentShareLink } from "@/lib/agent";
+import { agentShareLink, storeOrigin } from "@/lib/agent";
 import type { Agent, AgentCommission } from "@/lib/types";
 import {
   ChevronRightIcon,
@@ -169,7 +169,8 @@ export default function AgenDashboardPage() {
 
   const copyRefLink = () => {
     if (typeof window === "undefined" || !auth) return;
-    const link = agentShareLink(auth.code, window.location.origin);
+    // domain toko dari env bila diset — jangan pakai origin subdomain agen
+    const link = agentShareLink(auth.code, storeOrigin());
     navigator.clipboard?.writeText(link).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -337,9 +338,8 @@ export default function AgenDashboardPage() {
 
   // ── dashboard utama ──
   const { agent, summary, orders } = data;
-  const refLink = typeof window !== "undefined"
-    ? agentShareLink(agent.code, window.location.origin)
-    : agentShareLink(agent.code, "");
+  // domain toko dari env bila diset — jangan pakai origin subdomain agen
+  const refLink = agentShareLink(agent.code, storeOrigin());
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
