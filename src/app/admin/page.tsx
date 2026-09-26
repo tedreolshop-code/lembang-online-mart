@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon, listAgents, upsertAgent, deleteAgent, getCommissionSettings, saveCommissionSettings, listCommissions, commissionAction, overrideCommission, listAgentPrices, upsertAgentPrice, deleteAgentPrice, uploadKtp, getKtpUrl, deleteKtp } from "@/lib/store";
+import { useOrders, useProducts, updateOrderStatus, useSettings, saveSettings, adjustStock, setStock, upsertProduct, deleteProduct, acceptOrder, cancelOrder, deleteOrder, seedDatabase, listCoupons, upsertCoupon, deleteCoupon, listAgents, upsertAgent, deleteAgent, getCommissionSettings, saveCommissionSettings, listCommissions, commissionAction, overrideCommission, listAgentPrices, upsertAgentPrice, deleteAgentPrice, uploadKtp, getKtpUrl, deleteKtp } from "@/lib/store";
 import { printOrderStruk } from "@/lib/printStruk";
 import { cloudMode, adminLogin, adminLogout, hasAdminSession, localLogin, authHeaders, verifyAdminSession } from "@/lib/auth";
 import { DEFAULT_SETTINGS, formatWaDigits, type StoreSettings } from "@/lib/config";
@@ -1393,6 +1393,9 @@ function PesananTab() {
   const orders = useOrders();
   const products = useProducts();
   const settings = useSettings();
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
 
   if (orders.length === 0) {
     return (
@@ -1409,6 +1412,35 @@ function PesananTab() {
 
   const terima = async (o: Order) => {
     await acceptOrder(o);
+  };
+
+  // tampilkan toast lalu hilangkan otomatis (pesanan dihapus / gagal)
+  const showToast = (ok: boolean, text: string) => {
+    setToast({ ok, text });
+    window.setTimeout(() => setToast(null), 3500);
+  };
+
+  // hapus permanen: konfirmasi ketik id → baru dihapus + notifikasi hasil
+  const hapus = async (o: Order) => {
+    const jawab = prompt(
+      `⚠️ Hapus permanen pesanan ${o.id}?\n\n` +
+        `Tindakan ini TIDAK bisa dibatalkan: data pesanan hilang dari daftar ` +
+        `dan laporan. Ketik HAPUS untuk melanjutkan.`,
+    );
+    if (jawab === null) return; // dibatalkan
+    if (jawab.trim().toUpperCase() !== "HAPUS") {
+      showToast(false, "❌ Penghapusan dibatalkan — ketikan tidak sesuai.");
+      return;
+    }
+    try {
+      await deleteOrder(o.id);
+      showToast(true, `✅ Pesanan ${o.id} berhasil dihapus.`);
+    } catch (err) {
+      showToast(
+        false,
+        err instanceof Error ? err.message : "Gagal menghapus pesanan.",
+      );
+    }
   };
 
   const stokCukup = (o: Order) =>
@@ -1512,6 +1544,14 @@ function PesananTab() {
               >
                 🖨 Struk
               </button>
+              <button
+                type="button"
+                onClick={() => void hapus(o)}
+                title="Hapus permanen pesanan"
+                className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+              >
+                <TrashIcon className="h-3.5 w-3.5" /> Hapus
+              </button>
             </div>
           </div>
 
@@ -1552,6 +1592,17 @@ function PesananTab() {
           </div>
         </div>
       ))}
+
+      {toast && (
+        <div
+          role="status"
+          className={`fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-bold text-white shadow-lg transition ${
+            toast.ok ? "bg-emerald-600" : "bg-red-600"
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }

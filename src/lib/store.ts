@@ -557,6 +557,23 @@ export async function cancelOrder(o: Order): Promise<void> {
   );
 }
 
+/** Hapus pesanan permanen dari daftar (Admin → Pesanan).
+    Mode cloud: hapus di database via API. Mode lokal: hapus dari localStorage.
+    Riwayat pergerakan stok pesanan ikut dibersihkan agar tidak jadi sampah. */
+export async function deleteOrder(id: string): Promise<void> {
+  if (cloudMode) {
+    await api(`/api/orders/${id}`, { method: "DELETE" });
+    cloudOrders = cloudOrders.filter((x) => x.id !== id);
+    emit();
+    return;
+  }
+  writeJSON(KEYS.orders, readJSON<Order[]>(KEYS.orders, EMPTY_ORDERS).filter((x) => x.id !== id));
+  writeJSON(
+    KEYS.commissions,
+    readJSON<AgentCommission[]>(KEYS.commissions, []).filter((c) => c.orderId !== id),
+  );
+}
+
 /** Pilih metode pembayaran pesanan form (dipanggil pembeli di halaman
     sukses, setelah pesanan dibuat). Melempar Error bila gagal. */
 export async function setOrderPayment(

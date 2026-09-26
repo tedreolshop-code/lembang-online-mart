@@ -140,3 +140,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
     .single();
   return Response.json(rowToOrder(fresh!));
 }
+
+/** DELETE: hapus pesanan permanen (khusus admin).
+
+    order_items & agent_commissions ikut terhapus otomatis lewat ON DELETE
+    CASCADE, tetapi stock_movements.order_id merujuk orders(id) TANPA cascade —
+    jadi baris riwayat stok pesanan ini dihapus manual dulu agar DELETE tidak
+    gagal oleh foreign key. Data laporan (omzet/laba) akan berkurang permanen. */
+export async function DELETE(req: Request, ctx: Ctx) {
+  if (!isCloud) return cloudRequired();
+  if (!(await requireAdmin(req))) return unauthorized();
+  const { id } = await ctx.params;
+
+  await db().from("stock_movements").delete().eq("order_id", id);
+  const { error } = await db().from("orders").delete().eq("id", id);
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ ok: true });
+}
