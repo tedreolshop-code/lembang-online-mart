@@ -29,6 +29,10 @@ export function middleware(req: NextRequest) {
     const target = SUBDOMAIN_TARGETS[sub];
     if (target && sub !== "www") {
       const url = req.nextUrl.clone();
+      // JANGAN rewrite file statis (logo, foto produk, dsb.) — request file
+      // berakhiran ekstensi akan menerima HTML halaman dan gambarnya rusak.
+      const last = url.pathname.split("/").pop() ?? "";
+      if (/\.[a-z0-9]+$/i.test(last)) return NextResponse.next();
       url.pathname = target;
       // bawa query (?ref=…) bila ada
       return NextResponse.rewrite(url);
@@ -39,9 +43,8 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Halaman saja — API & aset statis tidak perlu direwrite.
-  matcher: [
-    // jalankan untuk semua request kecuali file internal Next & API
-    "/((?!api/|_next/|favicon.ico|images/|products/).*)",
-  ],
+  // Halaman saja — API, aset Next, dan SEMUA file ber-ekstensi (logo,
+  // foto, ikon) tidak perlu direwrite; memaksa file lewat rewrite membuat
+  // browser menerima HTML alih-alih gambarnya.
+  matcher: ["/((?!api/|_next/|.*\\.).*)"],
 };
