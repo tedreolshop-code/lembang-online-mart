@@ -42,14 +42,57 @@ const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
 });
 
+/** Domain utama toko — dipakai metadataBase, OpenGraph, dan JSON-LD.
+    Set NEXT_PUBLIC_STORE_ORIGIN di env bila domain berbeda. */
+const STORE_ORIGIN =
+  process.env.NEXT_PUBLIC_STORE_ORIGIN ?? "https://lembangonlinemart.com";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(STORE_ORIGIN),
   title: {
     default: `${DEFAULT_SETTINGS.name} — ${DEFAULT_SETTINGS.tagline}`,
     template: `%s · ${DEFAULT_SETTINGS.name}`,
   },
   description:
     "Warung online warga Lembang: mie instan, minyak, sembako, popok, dan kebutuhan harian lainnya. Belanja hemat, diantar sampai rumah.",
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    url: "/",
+    siteName: DEFAULT_SETTINGS.name,
+    title: `${DEFAULT_SETTINGS.name} — ${DEFAULT_SETTINGS.tagline}`,
+    description:
+      "Warung online warga Lembang: mie instan, minyak, sembako, popok, dan kebutuhan harian lainnya. Belanja hemat, diantar sampai rumah.",
+    images: [
+      {
+        url: "/logo.png",
+        width: 842,
+        height: 347,
+        alt: DEFAULT_SETTINGS.name,
+      },
+    ],
+  },
 };
+
+/** Data terstruktur Organization — sumber logo Google di hasil pencarian
+    (logo muncul setelah Google meng-crawl ulang; bukan seketika).
+    Favicon tab browser diurus otomatis oleh file favicon.ico / icon.png
+    / apple-icon.png di src/app (App Router file conventions). */
+function OrganizationJsonLd() {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: DEFAULT_SETTINGS.name,
+    url: STORE_ORIGIN,
+    logo: `${STORE_ORIGIN}/logo-mark.png`,
+  };
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
+  );
+}
 
 export async function generateViewport(): Promise<Viewport> {
   const theme = await getThemeColors();
@@ -72,6 +115,7 @@ export default async function RootLayout({
   return (
     <html lang="id" className={`${jakarta.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col pb-16 font-sans md:pb-0">
+        <OrganizationJsonLd />
         {!theme && (
           <script
             id="los-theme-init"
