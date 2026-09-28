@@ -21,8 +21,9 @@
 --   v14 create_order: kuota voucher atomik, batas harga agen, cek qty
 --   v15 komisi mode "harga" = margin (harga jual − HPP); batas harga agen
 --       hanya untuk mode persen
+--   v16 cabut EXECUTE create_order/delete_product dari publik (hanya service_role)
 --
--- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v15 yang
+-- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v16 yang
 -- belum pernah dijalankan (semua idempotent / aman diulang).
 -- Aman diulang: seluruh file ini juga idempotent.
 -- ============================================================
@@ -514,6 +515,20 @@ begin
   return v_count;
 end;
 $$;
+
+-- ── fungsi transaksi hanya untuk service_role (v16) ──────────────
+-- Fungsi mewarisi GRANT EXECUTE default ke PUBLIC; cabut agar anon/authenticated
+-- tidak bisa memanggilnya langsung lewat PostgREST. API Next.js memakai
+-- service_role sehingga tetap berjalan.
+revoke execute on function
+  create_order(text, text, jsonb, text, jsonb, int, int, text, text, text)
+  from public, anon, authenticated;
+grant execute on function
+  create_order(text, text, jsonb, text, jsonb, int, int, text, text, text)
+  to service_role;
+revoke execute on function delete_product(text)
+  from public, anon, authenticated;
+grant execute on function delete_product(text) to service_role;
 
 -- ── keamanan (RLS) ───────────────────────────────────────────
 -- Browser tidak pernah mengakses DB langsung: semua lewat API Next.js
