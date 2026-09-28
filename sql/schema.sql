@@ -1,7 +1,27 @@
 -- ============================================================
--- LEMBANG ONLINE MART — skema database (PostgreSQL / Supabase)
--- Cara pakai: buka Supabase Dashboard → SQL Editor → tempel &
--- jalankan seluruh file ini sekali.
+-- LEMBANG ONLINE MART — skema database final (PostgreSQL / Supabase)
+--
+-- Cara pakai: Supabase Dashboard → SQL Editor → tempel & jalankan
+-- seluruh file ini SEKALI untuk project baru.
+--
+-- File ini menggabungkan schema.sql versi awal + SEMUA migrasi
+-- alter-v2 … alter-v13, jadi database baru langsung lengkap:
+--   v2  status "dibatalkan" & reason "cancel"
+--   v3  tampilan tema + tabel rahasia notify_secrets
+--   v4  layanan antar, voucher, create_order dengan diskon
+--   v5  buang kolom notifikasi lama di settings
+--   v6  HPP, harga grosir, program agen & komisi
+--   v7  snapshot HPP pada order_items
+--   v8  akun pelanggan + Discord webhook + kolom agen
+--   v9  harga khusus agen (agent_prices) + mode komisi
+--   v10 foto KTP agen + bucket storage privat
+--   v11 metode pembayaran dari admin (COD/transfer)
+--   v12 akun pelanggan berpassword + lupa password
+--   v13 produk dapat dihapus walau pernah masuk pesanan/stok
+--
+-- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v13 yang
+-- belum pernah dijalankan (semua idempotent / aman diulang).
+-- Aman diulang: seluruh file ini juga idempotent.
 -- ============================================================
 
 create extension if not exists "pgcrypto";
@@ -59,11 +79,16 @@ create table if not exists orders (
   agent_code     text,
   agent_commission int not null default 0
 );
+-- daftar pesanan admin selalu diurut created_at desc — index ini menopang
+-- query tersebut saat jumlah pesanan bertambah banyak.
+create index if not exists orders_created_idx on orders (created_at desc);
 
 create table if not exists order_items (
   id         bigint generated always as identity primary key,
+  -- v13: link ke produk boleh NULL saat produk dihapus; snapshot kolom di
+  -- bawah tetap utuh sehingga riwayat & laporan tidak rusak.
   order_id   text not null references orders(id) on delete cascade,
-  product_id text references products(id),
+  product_id text references products(id) on delete set null,
   name       text not null,                     -- snapshot saat pesanan
   price      int  not null,
   qty        int  not null check (qty > 0),
@@ -107,12 +132,30 @@ create table if not exists notify_secrets (
   id              int primary key default 1 check (id = 1),
   notify_provider text not null default 'off',
   notify_token    text not null default '',
-  notify_target   text not null default ''
+  notify_target   text not null default '',
+  discord_webhook text not null default ''      -- v8: webhook Discord
+);
+
+-- ── akun pelanggan (v8) + password (v12) ────────────────────────
+-- No. WhatsApp sebagai identitas utama (bukan email). pay_target agen
+-- maupun data pelanggan tidak pernah dibaca langsung dari browser: tabel
+-- ini RLS-on tanpa policy → hanya service key (API Next.js).
+create table if not exists customers (
+  phone          text primary key,              -- normalisasi 628xxx
+  name           text not null,
+  address        text not null default '',
+  password_hash  text not null default '',      -- scrypt "s1$salt$hash" (v12)
+  reset_hash     text not null default '',      -- kode reset (di-hash) (v12)
+  reset_expires  timestamptz,                   -- kedaluwarsa kode (v12)
+  reset_attempts int not null default 0,        -- percobaan salah (v12)
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
 );
 
 create table if not exists stock_movements (
   id         bigint generated always as identity primary key,
-  product_id text not null references products(id),
+  -- v13: riwayat pergerakan ikut terhapus bersama produk.
+  product_id text not null references products(id) on delete cascade,
   delta      int not null,
   reason     text not null check (reason in ('order','receive','adjust','set','cancel')),
   order_id   text references orders(id),
@@ -175,9 +218,12 @@ create table if not exists agents (
   commission_percent int check (commission_percent is null
                                 or (commission_percent between 1 and 20)),
   -- mode komisi (v9): 'percent' = komisi persen, 'price' = untung dari
-  -- selisih harga khusus agen. Penanda tampilan admin saja.
+  -- selisih harga khusus agen. Penanda tampilan admin.
   commission_mode    text not null default 'percent'
                        check (commission_mode in ('percent','price')),
+  email              text,                       -- v8 (opsional)
+  pin_hash           text,                       -- v8 (opsional, belum dipakai UI)
+  ktp_url            text,                       -- v10: path foto KTP di Storage
   status             text not null default 'pending'
                        check (status in ('pending','aktif','nonaktif')),
   total_klik         int not null default 0,
@@ -212,8 +258,7 @@ create index if not exists agent_commissions_agent_idx
 -- Bila agen aktif punya baris di sini, pembeli yang datang dari tautan
 -- agen itu membayar harga ini (menimpa harga normal & grosir). Tanpa baris
 -- untuk produknya → harga normal/grosir seperti biasa.
--- Tabel dikunci RLS: hanya service key (API) yang membacanya; pembeli
--- menerima angkanya lewat API (kode agennya sendiri), bukan dari DB langsung.
+-- Tabel dikunci RLS: hanya service key (API) yang membacanya.
 create table if not exists agent_prices (
   agent_code  text not null references agents(code) on delete cascade,
   product_id  text not null references products(id) on delete cascade,
@@ -221,7 +266,6 @@ create table if not exists agent_prices (
   updated_at  timestamptz not null default now(),
   primary key (agent_code, product_id)
 );
-alter table agent_prices enable row level security;
 
 -- ── fungsi transaksi: buat pesanan + kurangi stok atomik ─────
 -- Mengembalikan total pesanan. Melempar error bila stok kurang
@@ -417,25 +461,45 @@ begin
   return v_total;
 end; $$;
 
+-- ── hapus produk secara atomik (v13) ─────────────────────────────
+-- order_items.product_id → ON DELETE SET NULL, stock_movements.product_id
+-- → ON DELETE CASCADE, jadi menghapus produk tidak lagi gagal oleh FK.
+-- Mengembalikan jumlah baris produk yang terhapus (0 = tidak ditemukan).
+create or replace function delete_product(p_id text)
+returns int
+language plpgsql
+as $$
+declare
+  v_count int;
+begin
+  delete from products where id = p_id;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
 -- ── keamanan (RLS) ───────────────────────────────────────────
 -- Browser tidak pernah mengakses DB langsung: semua lewat API Next.js
 -- yang memakai service key di server. RLS dipasang sebagai lapis kedua.
-alter table categories      enable row level security;
-alter table products        enable row level security;
-alter table orders          enable row level security;
-alter table order_items     enable row level security;
-alter table settings        enable row level security;
-alter table stock_movements enable row level security;
-alter table coupons         enable row level security;
+alter table categories          enable row level security;
+alter table products            enable row level security;
+alter table orders              enable row level security;
+alter table order_items         enable row level security;
+alter table settings            enable row level security;
+alter table stock_movements     enable row level security;
+alter table coupons             enable row level security;
 -- WAJIB: tanpa RLS aktif, tabel rahasia ini terbaca siapa pun yang punya
 -- anon key (Supabase memberi grant anon untuk tabel baru di schema public).
-alter table notify_secrets  enable row level security;
+alter table notify_secrets      enable row level security;
+-- v8/v12: data pelanggan (termasuk hash password & kode reset) → hanya service key.
+alter table customers           enable row level security;
 -- v6: grosir/agen — tanpa policy → hanya service key (API).
 -- product_tiers dibaca publik MELALUI API /api/products, bukan langsung.
 alter table product_tiers       enable row level security;
 alter table commission_settings enable row level security;
 alter table agents              enable row level security;
 alter table agent_commissions   enable row level security;
+alter table agent_prices        enable row level security;
 
 -- publik boleh membaca katalog & pengaturan
 drop policy if exists "publik baca kategori" on categories;
@@ -471,3 +535,19 @@ drop policy if exists "publik baca foto produk" on storage.objects;
 create policy "publik baca foto produk" on storage.objects
   for select using (bucket_id = 'product-images');
 -- upload hanya lewat API (service key) → tidak ada policy upload anon.
+
+-- ── bucket foto KTP agen (v10, privat) ───────────────────────────
+insert into storage.buckets (id, name, public)
+values ('agent-ktp', 'agent-ktp', false)
+on conflict (id) do nothing;
+
+drop policy if exists "agent-ktp no public access" on storage.objects;
+create policy "agent-ktp no public access" on storage.objects
+  for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+
+-- ── contoh voucher (v4, opsional — silakan ubah / hapus) ─────────
+insert into coupons (code, label, kind, value, min_subtotal, expires_at)
+values
+  ('HEMAT10', 'Voucher warga Lembang', 'percent', 10, 30000, null),
+  ('ONGKIR5K', 'Potongan ongkir peluncuran', 'fixed', 5000, 20000, null)
+on conflict (code) do nothing;
