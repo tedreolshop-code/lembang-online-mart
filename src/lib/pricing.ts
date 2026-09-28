@@ -59,13 +59,17 @@ export function agentPriceFor(
 }
 
 /** Harga satuan untuk pembeli dari tautan agen: harga khusus agen menimpa
-    harga normal & grosir, sama seperti aturan di `create_order`. */
+    harga normal & grosir HANYA bila lebih murah — sama seperti aturan di
+    `create_order`. Ini mencegah pembeli ditagih lebih mahal dari harga toko
+    gara-gara harga agen yang salah set. */
 export function unitPriceWithAgent(
   product: Pick<Product, "id" | "price" | "tiers">,
   qty: number,
   agentPrices?: AgentPriceLine[] | null,
 ): number {
-  return agentPriceFor(agentPrices, product.id) ?? unitPrice(product, qty);
+  const base = unitPrice(product, qty);
+  const ap = agentPriceFor(agentPrices, product.id);
+  return ap !== undefined && ap < base ? ap : base;
 }
 
 /** Subtotal satu baris keranjang untuk pembeli dari tautan agen (v9). */

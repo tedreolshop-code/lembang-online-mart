@@ -18,8 +18,9 @@
 --   v11 metode pembayaran dari admin (COD/transfer)
 --   v12 akun pelanggan berpassword + lupa password
 --   v13 produk dapat dihapus walau pernah masuk pesanan/stok
+--   v14 create_order: kuota voucher atomik, batas harga agen, cek qty
 --
--- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v13 yang
+-- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v14 yang
 -- belum pernah dijalankan (semua idempotent / aman diulang).
 -- Aman diulang: seluruh file ini juga idempotent.
 -- ============================================================
@@ -304,6 +305,7 @@ declare
   v_note     text := '';
   v_phone    text;
   v_agenwa   text;
+  v_coupon   coupons%rowtype;
 begin
   if exists (select 1 from orders where id = p_id) then
     raise exception 'kode pesanan sudah terpakai';
@@ -318,6 +320,9 @@ begin
       raise exception 'produk tidak ditemukan: %', v_item->>'productId';
     end if;
     v_qty := (v_item->>'qty')::int;
+    if v_qty is null or v_qty <= 0 then
+      raise exception 'jumlah tidak valid';
+    end if;
     if v_product.stock < v_qty then
       raise exception 'stok tidak cukup: %', v_product.name;
     end if;
@@ -360,7 +365,11 @@ begin
             from agent_prices ap
             where ap.agent_code = v_code
               and ap.product_id = v_item->>'productId';
-          if v_aprice is not null and v_aprice > 0 then
+          -- harga khusus agen hanya dipakai bila LEBIH MURAH dari harga
+          -- efektif saat itu (normal/grosir) — pembeli tak bisa ditagih lebih
+          -- mahal dari harga toko karena salah set harga agen.
+          if v_aprice is not null and v_aprice > 0
+             and v_aprice < (v_item->>'price')::int then
             v_item := jsonb_set(v_item, '{price}', to_jsonb(v_aprice));
           end if;
           v_adj := v_adj || v_item;
@@ -436,7 +445,26 @@ begin
             case when v_komisi > 0 then 'pending' else 'batal' end, v_note);
   end if;
 
+  -- kuota voucher dijaga ATOMIK di sini (SELECT ... FOR UPDATE): validasi di
+  -- Node bisa dilewati oleh permintaan bersamaan sehingga kuota bisa oversell.
   if p_coupon_code is not null then
+    select * into v_coupon from coupons
+      where upper(code) = upper(p_coupon_code) for update;
+    if not found then
+      raise exception 'voucher tidak ditemukan';
+    end if;
+    if not v_coupon.active then
+      raise exception 'voucher sedang tidak aktif';
+    end if;
+    if v_coupon.expires_at is not null and v_coupon.expires_at < current_date then
+      raise exception 'voucher sudah kedaluwarsa';
+    end if;
+    if v_coupon.max_uses is not null and v_coupon.used_count >= v_coupon.max_uses then
+      raise exception 'kuota voucher habis';
+    end if;
+    if v_coupon.min_subtotal > 0 and v_subtotal < v_coupon.min_subtotal then
+      raise exception 'belanja belum mencapai minimum voucher';
+    end if;
     update coupons
       set used_count = used_count + 1
       where upper(code) = upper(p_coupon_code);

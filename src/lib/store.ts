@@ -586,6 +586,18 @@ export async function acceptOrder(o: Order): Promise<void> {
   updateOrderStatus(o.id, "diproses");
 }
 
+/** Kembalikan kuota voucher yang terpakai saat pesanan dibatalkan (mode lokal)
+    — cermin penurunan used_count di PATCH /api/orders/[id]. */
+function refundCouponLocal(code: string | undefined): void {
+  if (!code) return;
+  writeJSON(
+    KEYS.coupons,
+    readJSON<Coupon[]>(KEYS.coupons, []).map((c) =>
+      c.code === code ? { ...c, usedCount: Math.max(0, c.usedCount - 1) } : c,
+    ),
+  );
+}
+
 /** Batalkan pesanan → kembalikan stok yang sudah dikurangi */
 export async function cancelOrder(o: Order): Promise<void> {
   if (cloudMode) {
@@ -604,6 +616,7 @@ export async function cancelOrder(o: Order): Promise<void> {
     ),
   );
   syncLocalCommission(o.id, o.status, "dibatalkan");
+  refundCouponLocal(o.coupon);
   // kembalikan stok HANYA bila memang pernah dikurangi (sekali saja)
   if (o.stockApplied) {
     writeJSON(
@@ -684,6 +697,7 @@ export async function updateOrderStatus(
         : o,
     ),
   );
+  if (cancelling) refundCouponLocal(current?.coupon);
   if (cancelling && current?.stockApplied) {
     writeJSON(
       KEYS.products,

@@ -100,6 +100,21 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     row.status = "dibatalkan";
     row.stock_applied = false;
+    // kembalikan kuota voucher yang terpakai oleh pesanan ini (cermin
+    // kenaikan used_count di create_order)
+    if (order.coupon_code) {
+      const { data: c } = await db()
+        .from("coupons")
+        .select("used_count")
+        .eq("code", order.coupon_code)
+        .maybeSingle();
+      if (c) {
+        await db()
+          .from("coupons")
+          .update({ used_count: Math.max(0, (c.used_count ?? 0) - 1) })
+          .eq("code", order.coupon_code);
+      }
+    }
   }
 
   if (body.accept && !order.stock_applied && !wantsCancel) {

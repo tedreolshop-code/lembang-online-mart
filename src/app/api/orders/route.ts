@@ -30,9 +30,27 @@ export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
 
   const body = await req.json();
-  const items = Array.isArray(body?.items) ? body.items : [];
-  if (items.length === 0) {
+  const rawItems = Array.isArray(body?.items) ? body.items : [];
+  if (rawItems.length === 0) {
     return Response.json({ error: "Pesanan kosong." }, { status: 400 });
+  }
+  // validasi bentuk item: qty harus bilangan bulat > 0. Tanpa ini, qty negatif
+  // lolos ke create_order dan membuat subtotal negatif.
+  const items: { productId: string; qty: number }[] = [];
+  for (const raw of rawItems) {
+    const o = (raw ?? {}) as { productId?: unknown; qty?: unknown };
+    const productId = String(o.productId ?? "");
+    const qty = Math.floor(Number(o.qty));
+    if (!productId) {
+      return Response.json({ error: "Produk tidak valid." }, { status: 400 });
+    }
+    if (!Number.isInteger(qty) || qty <= 0) {
+      return Response.json(
+        { error: "Jumlah produk tidak valid." },
+        { status: 400 },
+      );
+    }
+    items.push({ productId, qty });
   }
   const c = body?.customer ?? {};
   if (!c.name?.trim() || !c.phone?.trim() || !c.address?.trim()) {
