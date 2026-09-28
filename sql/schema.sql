@@ -23,8 +23,9 @@
 --       hanya untuk mode persen
 --   v16 cabut EXECUTE create_order/delete_product dari publik (hanya service_role)
 --   v17 index untuk pertumbuhan data
+--   v18 idempotensi pesanan (orders.client_token)
 --
--- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v17 yang
+-- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v18 yang
 -- belum pernah dijalankan (semua idempotent / aman diulang).
 -- Aman diulang: seluruh file ini juga idempotent.
 -- ============================================================
@@ -82,8 +83,12 @@ create table if not exists orders (
   total          int  not null default 0,
   -- program agen (v6): kode agen tercatat + snapshot nilai komisinya
   agent_code     text,
-  agent_commission int not null default 0
+  agent_commission int not null default 0,
+  -- idempotensi (v18): token dari browser agar klik/retry ganda tidak
+  -- menghasilkan dua pesanan. NULL untuk pesanan lama / tanpa token.
+  client_token   text
 );
+create unique index if not exists orders_client_token_key on orders (client_token);
 -- daftar pesanan admin selalu diurut created_at desc — index ini menopang
 -- query tersebut saat jumlah pesanan bertambah banyak.
 create index if not exists orders_created_idx on orders (created_at desc);
@@ -295,7 +300,8 @@ create or replace function create_order(
   p_discount     int  default 0,
   p_coupon_code  text default null,
   p_ship_option  text default 'reguler',
-  p_agent_code   text default null
+  p_agent_code   text default null,
+  p_client_token text default null
 ) returns int language plpgsql as $$
 declare
   v_item     jsonb;
@@ -447,13 +453,13 @@ begin
                       customer_name, customer_phone, customer_address,
                       note, payment, ship_option, subtotal, discount,
                       coupon_code, shipping, total,
-                      agent_code, agent_commission)
+                      agent_code, agent_commission, client_token)
   values (p_id, p_channel, 'menunggu', true,
           p_customer->>'name', p_customer->>'phone', p_customer->>'address',
           p_customer->>'note', p_payment,
           coalesce(nullif(p_ship_option, ''), 'reguler'),
           v_subtotal, coalesce(p_discount, 0), p_coupon_code,
-          coalesce(p_shipping, 0), v_total, v_code, v_komisi);
+          coalesce(p_shipping, 0), v_total, v_code, v_komisi, p_client_token);
 
   -- baris komisi dibuat begitu ada agen yang tercatat, walau nilainya 0
   -- (supaya alasan 0-nya terekam: pembelian sendiri, agen nonaktif, dst.)

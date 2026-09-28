@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useCart, useCartLines } from "@/lib/cart";
 import {
   checkCoupon,
@@ -24,6 +24,15 @@ import { normalizeAgentCode } from "@/lib/agent";
 import type { PaymentMethod } from "@/lib/types";
 import ProductImage from "@/components/ProductImage";
 import { CheckIcon, TruckIcon } from "@/components/Icons";
+
+/** Token idempotensi per percobaan checkout (v18) — dipakai ulang saat retry
+    agar klik/retry ganda tidak membuat dua pesanan. */
+function newCheckoutToken(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `t${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -51,6 +60,8 @@ export default function CheckoutPage() {
   const [shipOption, setShipOption] = useState<ShipOption>("reguler");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // token idempotensi: dibuat sekali lalu dipakai ulang sampai pesanan jadi
+  const idemRef = useRef<string>("");
 
   // kode agen (v6): terisi otomatis bila pengujung datang dari link
   // referral — ?ref= ditangkap komponen RefCapture di layout & disimpan,
@@ -134,6 +145,7 @@ export default function CheckoutPage() {
     setError("");
 
     try {
+      if (!idemRef.current) idemRef.current = newCheckoutToken();
       // mode cloud: harga, stok, ongkir & voucher divalidasi server
       // (transaksi database); mode lokal: dihitung dari data browser
       const order = await createOrder({
@@ -149,10 +161,12 @@ export default function CheckoutPage() {
         shipOption,
         couponCode: voucherActive ? applied?.code : undefined,
         agentCode: agentInput.trim() || undefined,
+        clientToken: idemRef.current,
       });
       // pembeli berikutnya tidak usah mengetik ulang data yang sama
       saveCustomer({ name, phone, address });
       clearCart();
+      idemRef.current = ""; // token selesai — checkout berikutnya dapat token baru
       router.push(`/pesanan?sukses=${order.id}`);
     } catch (err) {
       setError(

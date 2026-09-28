@@ -11,6 +11,13 @@ import { sendOrderNotification } from "@/lib/notify";
 import { withSecrets } from "@/lib/notify-secrets";
 import { after } from "next/server";
 
+/** Token idempotensi dari browser (v18). Opsional; format dibatasi agar tidak
+    menyimpan string sembarang. Tidak valid/kosong → dianggap tanpa token. */
+function sanitizeClientToken(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  return /^[A-Za-z0-9_-]{8,64}$/.test(s) ? s : null;
+}
+
 /** GET: semua pesanan — khusus admin (mode cloud) */
 export async function GET(req: Request) {
   if (!isCloud) return cloudRequired();
@@ -60,6 +67,24 @@ export async function POST(req: Request) {
     );
   }
   const shipOption = body.shipOption === "xpress" ? "xpress" : "reguler";
+  const clientToken = sanitizeClientToken(body?.clientToken);
+
+  // idempotensi (v18): bila token ini sudah pernah membuat pesanan, kembalikan
+  // pesanan yang ADA — jangan buat baru (respons hilang / tombol dobel).
+  if (clientToken) {
+    const { data: existing } = await db()
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("client_token", clientToken)
+      .maybeSingle();
+    if (existing) {
+      const ord = rowToOrder(existing);
+      return Response.json({
+        order: orderWithoutCostPrice(ord),
+        total: ord.total,
+      });
+    }
+  }
 
   // pengaturan ongkir dari DB
   const { data: sRow } = await db().from("settings").select("*").eq("id", 1).single();
@@ -198,6 +223,7 @@ export async function POST(req: Request) {
       p_coupon_code: couponCode,
       p_ship_option: shipOption,
       p_agent_code: agentCode || null,
+      p_client_token: clientToken,
     });
     if (error && /find the function|does not exist/i.test(error.message)) {
       if (couponCode || shipOption === "xpress") {
@@ -247,6 +273,23 @@ export async function POST(req: Request) {
       });
     }
     lastError = error.message;
+    // balapan idempotensi: permintaan kembar menang lebih dulu (UNIQUE
+    // client_token menolak insert) → kembalikan pesanan yang sudah ada.
+    if (clientToken && /client_token/i.test(lastError)) {
+      const { data: ex } = await db()
+        .from("orders")
+        .select("*, order_items(*)")
+        .eq("client_token", clientToken)
+        .maybeSingle();
+      if (ex) {
+        const ord = rowToOrder(ex);
+        return Response.json({
+          order: orderWithoutCostPrice(ord),
+          total: ord.total,
+        });
+      }
+      break;
+    }
     if (!lastError.includes("kode pesanan sudah terpakai")) break;
   }
   return Response.json({ error: lastError }, { status: 409 });

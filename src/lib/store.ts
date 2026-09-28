@@ -402,6 +402,8 @@ export interface OrderDraft {
   couponCode?: string;
   /** kode agen yang mengetik/terpasang dari link referral (v6) */
   agentCode?: string;
+  /** token idempotensi (v18) — cegah pesanan ganda saat retry/klik dobel */
+  clientToken?: string;
 }
 
 /** Buat pesanan. Cloud: harga, stok, ongkir, dan voucher divalidasi
