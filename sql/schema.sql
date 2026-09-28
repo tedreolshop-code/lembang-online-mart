@@ -22,8 +22,9 @@
 --   v15 komisi mode "harga" = margin (harga jual − HPP); batas harga agen
 --       hanya untuk mode persen
 --   v16 cabut EXECUTE create_order/delete_product dari publik (hanya service_role)
+--   v17 index untuk pertumbuhan data
 --
--- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v16 yang
+-- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v17 yang
 -- belum pernah dijalankan (semua idempotent / aman diulang).
 -- Aman diulang: seluruh file ini juga idempotent.
 -- ============================================================
@@ -270,6 +271,14 @@ create table if not exists agent_prices (
   updated_at  timestamptz not null default now(),
   primary key (agent_code, product_id)
 );
+
+-- ── index untuk pertumbuhan data (v17) ───────────────────────────
+create index if not exists orders_customer_phone_idx on orders (customer_phone);
+create index if not exists orders_status_idx on orders (status);
+create index if not exists order_items_product_idx on order_items (product_id);
+create index if not exists stock_movements_order_idx on stock_movements (order_id);
+create index if not exists stock_movements_product_idx on stock_movements (product_id);
+create index if not exists coupons_active_idx on coupons (active, expires_at);
 
 -- ── fungsi transaksi: buat pesanan + kurangi stok atomik ─────
 -- Mengembalikan total pesanan. Melempar error bila stok kurang

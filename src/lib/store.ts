@@ -247,15 +247,23 @@ function ensureCloudBoot() {
   void safeRefresh(refreshProducts);
   void safeRefresh(refreshSettings);
   void safeRefresh(refreshOrders);
-  // sinkron berkala + saat tab kembali aktif
+  // Sinkron berkala. Pemanggilan di sini mewakili SELURUH pengunjung, jadi
+  // dibuat hemat: katalog & pengaturan jarang berubah (2 menit sekali),
+  // pesanan lebih sering (20 detik), dan TIDAK ada polling saat tab
+  // disembunyikan — penting saat pengunjung/pesanan makin banyak.
   setInterval(() => {
+    if (document.hidden) return;
     void safeRefresh(refreshProducts);
     void safeRefresh(refreshSettings);
+  }, 120000);
+  setInterval(() => {
+    if (document.hidden) return;
     void safeRefresh(refreshOrders);
-  }, 15000);
+  }, 20000);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       void safeRefresh(refreshProducts);
+      void safeRefresh(refreshSettings);
       void safeRefresh(refreshOrders);
     }
   });
