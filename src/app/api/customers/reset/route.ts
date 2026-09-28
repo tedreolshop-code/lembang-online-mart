@@ -9,18 +9,22 @@ import { randomInt } from "crypto";
   POST {phone}                    → minta kode reset (langkah 1)
   POST {phone, code, password}    → pasang password baru (langkah 2)
 
-  Caranya: kode 6 digit dikirim ke No. WhatsApp pelanggan lewat link
-  wa.me — pelanggan menekan tombol "Buka WhatsApp" di halaman lupa
-  password, lalu mengetikkan kode yang muncul di chat tersebut ke form.
-  Kode hanya sampai ke pemilik nomor, jadi siapa pun yang tidak pegang
-  nomor itu tidak bisa mengganti passwordnya.
+  Caranya: kode 6 digit dikirim SERVER-SIDE oleh server toko ke No. WhatsApp
+  pelanggan lewat Fonnte (kredensial di tabel notify_secrets). Kode TIDAK
+  pernah ikut di respons API — bila dikembalikan ke pemanggil, siapa pun yang
+  mengetahui nomor korban bisa membaca kodenya lalu mengganti password
+  (account takeover).
 
   Keamanan:
   - Kode disimpan sebagai HASH (bukan teks polos) + kedaluwarsa 15 menit.
   - Maksimal 5 percobaan salah, setelah itu kode hangus (harus minta baru).
   - Pesan error langkah 2 netral, tidak membedakan "nomor tak terdaftar"
     vs "kode salah" vs "kedaluwarsa" — menghindari enumerasi.
+  - Cek konfigurasi pengiriman dilakukan SEBELUM lookup nomor, dan nomor tak
+    terdaftar selalu dibalas sukses palsu — agar bukan alat enumerasi.
   - Akun lama yang belum pernah buat password juga bisa lewat alur ini. */
+
+import { readSecrets } from "@/lib/notify-secrets";
 
 const REQUEST_LIMIT = { max: 3, windowMs: 15 * 60 * 1000 };
 const RESET_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 };
@@ -107,6 +111,22 @@ export async function POST(req: Request) {
   const tunggu = hitRateLimit(`cust-reset1:${clientIp(req)}`, REQUEST_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
+  // Pengiriman kode HARUS lewat server (Fonnte), bukan wa.me yang dibuka di
+  // perangkat pemanggil — wa.me membocorkan kode ke siapa pun yang menebak
+  // nomor. Cek konfigurasi SEBELUM lookup nomor supaya responsnya seragam
+  // (bukan alat enumerasi nomor terdaftar).
+  const sec = await readSecrets();
+  const fonnteToken = sec.provider === "fonnte" ? sec.token : "";
+  if (!fonnteToken) {
+    return Response.json(
+      {
+        error:
+          "Reset password via WhatsApp belum diaktifkan. Hubungi warung untuk bantuan.",
+      },
+      { status: 503 },
+    );
+  }
+
   const { data: row } = await db()
     .from("customers")
     .select("phone")
@@ -114,9 +134,8 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (!row) {
-    // Respons sukses palsu agar nomor tak terdaftar tidak bisa dipetakan;
-    // frontend menampilkan wa.me generik tanpa kode.
-    return Response.json({ ok: true, waLink: `https://wa.me/${phone}` });
+    // Respons sukses palsu agar nomor tak terdaftar tidak bisa dipetakan.
+    return Response.json({ ok: true });
   }
 
   const kode = String(randomInt(0, 1_000_000)).padStart(6, "0");
@@ -136,12 +155,30 @@ export async function POST(req: Request) {
     );
   }
 
-  // kode dikirim via wa.me — pelanggan menekan tombol, lalu menyalin
-  // kode dari draft pesan yang muncul di WhatsApp
-  const waLink =
-    `https://wa.me/${phone}?text=` +
-    encodeURIComponent(
-      `Reset password Lembang Online Mart\nKode saya: ${kode}\n\n(Abaikan pesan ini setelah kode disalin)`,
+  // Kirim kode ke WhatsApp pemilik nomor — server-side, kode tidak pernah
+  // dikembalikan ke pemanggil API.
+  let terkirim = false;
+  try {
+    const res = await fetch("https://api.fonnte.com/send", {
+      method: "POST",
+      headers: { Authorization: fonnteToken },
+      body: new URLSearchParams({
+        target: phone,
+        message:
+          `Kode reset password Lembang Online Mart: ${kode}\n\n` +
+          `Berlaku ${KODE_MENIT} menit. Abaikan pesan ini bila kamu tidak meminta reset.`,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    terkirim = res.ok;
+  } catch {
+    terkirim = false;
+  }
+  if (!terkirim) {
+    return Response.json(
+      { error: "Gagal mengirim kode ke WhatsApp. Coba lagi sebentar lagi." },
+      { status: 502 },
     );
-  return Response.json({ ok: true, waLink });
+  }
+  return Response.json({ ok: true });
 }

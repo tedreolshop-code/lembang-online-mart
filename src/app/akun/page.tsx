@@ -36,8 +36,8 @@ import {
 
 /** Halaman Akun: pusat menu pelanggan.
     Daftar: No. WA + nama + password (tersimpan di database mode cloud).
-    Masuk: No. WA + password. Lupa password: kode reset dikirim ke
-    WhatsApp pelanggan sendiri lewat wa.me. */
+    Masuk: No. WA + password. Lupa password: kode reset dikirim server-side
+    ke WhatsApp pelanggan (tidak pernah tampil di browser). */
 export default function AkunPage() {
   const settings = useSettings();
   const orders = useOrders();
@@ -62,7 +62,6 @@ export default function AkunPage() {
     password2: "",
     code: "",
   });
-  const [resetWaLink, setResetWaLink] = useState("");
   const [loginMsg, setLoginMsg] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -90,7 +89,6 @@ export default function AkunPage() {
       code: "",
     });
     setMode("masuk");
-    setResetWaLink("");
     setLoginMsg("");
     setLoginErr("");
     setLoginOpen(true);
@@ -153,8 +151,7 @@ export default function AkunPage() {
     setLoading(true);
     setLoginErr("");
     try {
-      const waLink = await customerRequestReset(loginForm.phone);
-      setResetWaLink(waLink);
+      await customerRequestReset(loginForm.phone);
       setMode("lupa2");
     } catch (err) {
       setLoginErr(err instanceof Error ? err.message : "Gagal. Coba lagi.");
@@ -508,26 +505,10 @@ export default function AkunPage() {
                   Password Baru
                 </h3>
                 <p className="text-[11px] leading-relaxed text-white/70">
-                  1. Tekan tombol <b>Buka WhatsApp</b> — kode reset otomatis
-                  muncul di pesan ke nomormu sendiri, kirim pesannya.
-                  <br />
-                  2. Lihat kode di WhatsApp, lalu masukkan di bawah beserta
+                  Kode reset 6 digit sudah dikirim ke WhatsApp{" "}
+                  <b>{loginForm.phone}</b>. Masukkan kodenya di bawah beserta
                   password barumu.
                 </p>
-                {resetWaLink ? (
-                  <a
-                    href={resetWaLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-xl bg-[#25d366] px-4 py-2.5 text-center text-sm font-bold text-white shadow transition hover:brightness-95"
-                  >
-                    Buka WhatsApp — Ambil Kode
-                  </a>
-                ) : (
-                  <p className="text-[11px] text-white/70">
-                    Kode belum dibuat — kembali dan minta kode dulu.
-                  </p>
-                )}
                 <label className="block text-xs font-bold text-white/90">
                   Kode Reset (6 digit) *
                   <input

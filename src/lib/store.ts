@@ -866,19 +866,13 @@ export async function customerLogin(
   throw new Error("Mode lokal belum mendukung password.");
 }
 
-/** Langkah 1 lupa password: minta kode reset.
-    Return link wa.me berisi kode — dibuka di WhatsApp milik pelanggan. */
-export async function customerRequestReset(
-  phone: string,
-): Promise<string> {
-  const res = await api<{ ok: boolean; waLink: string }>(
-    "/api/customers/reset",
-    {
-      method: "POST",
-      body: JSON.stringify({ phone: formatWaDigits(phone) }),
-    },
-  );
-  return res.waLink;
+/** Langkah 1 lupa password: minta kode reset. Kode dikirim server-side ke
+    WhatsApp pelanggan — TIDAK dikembalikan ke browser. */
+export async function customerRequestReset(phone: string): Promise<void> {
+  await api("/api/customers/reset", {
+    method: "POST",
+    body: JSON.stringify({ phone: formatWaDigits(phone) }),
+  });
 }
 
 /** Langkah 2 lupa password: pasang password baru memakai kode reset. */
