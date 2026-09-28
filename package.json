@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/lib/__tests__/pricing.test.ts src/lib/__tests__/coupon.test.ts src/lib/__tests__/agent.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
