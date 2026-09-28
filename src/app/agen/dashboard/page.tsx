@@ -42,7 +42,7 @@ interface DashboardData {
 
 export default function AgenDashboardPage() {
   const auth = useAgenAuth();
-  const [loginForm, setLoginForm] = useState({ wa: "", code: "" });
+  const [loginForm, setLoginForm] = useState({ wa: "", code: "", pin: "" });
   const [loginErr, setLoginErr] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -71,7 +71,7 @@ export default function AgenDashboardPage() {
       setFetchErr("");
       try {
         const res = await fetch(
-          `/api/agents/me?wa=${encodeURIComponent(auth.wa)}&code=${encodeURIComponent(auth.code)}`,
+          `/api/agents/me?wa=${encodeURIComponent(auth.wa)}&code=${encodeURIComponent(auth.code)}&pin=${encodeURIComponent(auth.pin)}`,
         );
         const body = await res.json();
         if (!cancelled) {
@@ -90,21 +90,26 @@ export default function AgenDashboardPage() {
   }, [auth]);
 
   const submitLogin = async () => {
-    if (!loginForm.wa.trim() || !loginForm.code.trim()) {
-      setLoginErr("No. WhatsApp dan kode agen wajib diisi.");
+    if (!loginForm.wa.trim() || !loginForm.code.trim() || !loginForm.pin.trim()) {
+      setLoginErr("No. WhatsApp, kode agen, dan PIN wajib diisi.");
       return;
     }
     setLoading(true);
     setLoginErr("");
     try {
       const res = await fetch(
-        `/api/agents/me?wa=${encodeURIComponent(loginForm.wa)}&code=${encodeURIComponent(loginForm.code.toUpperCase())}`,
+        `/api/agents/me?wa=${encodeURIComponent(loginForm.wa)}&code=${encodeURIComponent(loginForm.code.toUpperCase())}&pin=${encodeURIComponent(loginForm.pin)}`,
       );
       const body = await res.json();
       if (!res.ok) {
         setLoginErr(body.error ?? "Gagal masuk.");
       } else {
-        agenLogin(body.agent.code, loginForm.wa.replace(/[^0-9]/g, "").replace(/^0/, "62"), body.agent.nama);
+        agenLogin(
+          body.agent.code,
+          loginForm.wa.replace(/[^0-9]/g, "").replace(/^0/, "62"),
+          body.agent.nama,
+          loginForm.pin,
+        );
       }
     } catch {
       setLoginErr("Gagal terhubung ke server.");
@@ -115,7 +120,7 @@ export default function AgenDashboardPage() {
 
   const handleLogout = () => {
     agenLogout();
-    setLoginForm({ wa: "", code: "" });
+    setLoginForm({ wa: "", code: "", pin: "" });
     setData(null);
     setEditing(false);
   };
@@ -144,6 +149,7 @@ export default function AgenDashboardPage() {
         body: JSON.stringify({
           wa: auth.wa,
           code: auth.code,
+          pin: auth.pin,
           ...editForm,
         }),
       });
@@ -155,7 +161,7 @@ export default function AgenDashboardPage() {
         setEditing(false);
         // refresh data
         const dashRes = await fetch(
-          `/api/agents/me?wa=${encodeURIComponent(auth.wa)}&code=${encodeURIComponent(auth.code)}`,
+          `/api/agents/me?wa=${encodeURIComponent(auth.wa)}&code=${encodeURIComponent(auth.code)}&pin=${encodeURIComponent(auth.pin)}`,
         );
         const dashBody = await dashRes.json();
         if (dashRes.ok) setData(dashBody);
@@ -195,8 +201,7 @@ export default function AgenDashboardPage() {
 
         <section className="mt-5 space-y-4 rounded-2xl bg-white p-5 shadow-sm">
           <p className="text-sm leading-relaxed text-slate-600">
-            Masukkan No. WhatsApp dan kode agen yang kamu dapat saat pendaftaran
-            disetujui admin.
+            Masukkan No. WhatsApp, kode agen, dan PIN yang diberikan admin.
           </p>
 
           <label className="block text-xs font-bold text-slate-600">
@@ -218,6 +223,19 @@ export default function AgenDashboardPage() {
               placeholder="cth: AGXXXX"
               className="input mt-1"
               style={{ textTransform: "uppercase" }}
+            />
+          </label>
+
+          <label className="block text-xs font-bold text-slate-600">
+            PIN *
+            <input
+              type="password"
+              value={loginForm.pin}
+              onChange={(e) => setLoginForm({ ...loginForm, pin: e.target.value })}
+              placeholder="PIN dari admin"
+              inputMode="numeric"
+              className="input mt-1"
+              autoComplete="off"
             />
           </label>
 

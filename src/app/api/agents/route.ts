@@ -1,6 +1,7 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { newAgentCode, normalizeAgentCode, rowToAgent } from "@/lib/agent";
 import { formatWaDigits } from "@/lib/config";
+import { hashSecret } from "@/lib/password";
 import type { Agent } from "@/lib/types";
 
 /** Program agen (v6). Semua tulis-hapus khusus admin; tabel terkunci RLS
@@ -67,6 +68,15 @@ export async function POST(req: Request) {
       { error: "Nama & nomor WhatsApp (min. 8 digit) wajib diisi." },
       { status: 400 },
     );
+  }
+
+  // PIN agen (rahasia login dashboard). Kosong = jangan ubah PIN lama.
+  const pin = String(body?.pin ?? "").trim();
+  if (pin) {
+    if (pin.length < 4) {
+      return Response.json({ error: "PIN minimal 4 karakter." }, { status: 400 });
+    }
+    row.pin_hash = hashSecret(pin);
   }
 
   // total_klik tidak boleh hilang saat admin mengedit agen

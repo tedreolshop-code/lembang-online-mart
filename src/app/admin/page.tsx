@@ -1934,6 +1934,7 @@ const EMPTY_AGENT_FORM = {
   commissionPercent: "",
   status: "pending" as Agent["status"],
   ktpUrl: "" as string,
+  pin: "" as string,
 };
 
 /* ── baris editor harga khusus agen per produk (v9) ──────────── */
@@ -2189,6 +2190,7 @@ function AgenTab() {
         status: form.status,
         totalKlik: agents?.find((a) => a.code === form.code)?.totalKlik ?? 0,
         ktpUrl: form.ktpUrl || undefined,
+        pin: form.pin.trim() || undefined,
       });
       flash(
         warning ??
@@ -2217,6 +2219,7 @@ function AgenTab() {
       commissionPercent: a.commissionPercent == null ? "" : String(a.commissionPercent),
       status: a.status,
       ktpUrl: a.ktpUrl ?? "",
+      pin: "",
     });
     setEditingCode(a.code);
     setKtpError("");
@@ -2608,6 +2611,19 @@ function AgenTab() {
             />
           </label>
         )}
+        <label className="block">
+          <span className="form-label">
+            PIN agen (min. 4 karakter — untuk login dashboard)
+          </span>
+          <input
+            type="text"
+            value={form.pin}
+            onChange={(e) => set({ pin: e.target.value })}
+            placeholder={editingCode ? "kosongkan bila tidak diubah" : "mis. 4821"}
+            className="input"
+            autoComplete="off"
+          />
+        </label>
         <div className="flex items-end gap-2">
           <button
             type="submit"

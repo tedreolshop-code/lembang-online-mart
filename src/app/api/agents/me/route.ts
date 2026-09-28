@@ -1,15 +1,61 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
 import { formatWaDigits } from "@/lib/config";
 import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { verifySecret } from "@/lib/password";
 import { normalizeAgentCode, rowToAgent, rowToCommission, effectiveCommission, isCommissionReady } from "@/lib/agent";
 
 /** Dashboard agen — data profil + ringkasan komisi + riwayat pesanan.
-    Agen login dengan No. WA + kode unik (diberikan saat daftar disetujui).
-    Tidak butuh admin auth — kode agen adalah kuncinya. */
+    Agen login dengan No. WA + kode agen + PIN. Kode agen tampil publik di
+    tautan referral, jadi DIA TIDAK RAHASIA — PIN-lah kuncinya. */
 
-/** Batas per IP: endpoint ini memverifikasi pasangan No. WA + kode agen, jadi
-    tanpa batas laju pasangan itu bisa digempur sampai ketemu. */
+/** Batas per IP: endpoint memverifikasi WA + kode + PIN, jadi tanpa batas laju
+    kredensial itu bisa digempur sampai ketemu. */
 const AGEN_LIMIT = { max: 10, windowMs: 5 * 60 * 1000 };
+
+type AgentRow = Parameters<typeof rowToAgent>[0];
+
+/** Verifikasi kredensial agen (WA + kode + PIN). Mengembalikan baris agen bila
+    valid, atau Response error siap dikirim. */
+async function verifyAgent(
+  wa: string,
+  code: string,
+  pin: string,
+): Promise<{ row: AgentRow } | Response> {
+  if (!wa || wa.length < 8) {
+    return Response.json({ error: "Nomor WhatsApp tidak valid." }, { status: 400 });
+  }
+  if (!code) {
+    return Response.json({ error: "Kode agen wajib diisi." }, { status: 400 });
+  }
+  if (!pin) {
+    return Response.json({ error: "PIN wajib diisi." }, { status: 400 });
+  }
+  const { data: row, error } = await db()
+    .from("agents")
+    .select("*")
+    .eq("code", code)
+    .eq("wa", wa)
+    .maybeSingle();
+  if (error) {
+    return Response.json({ error: "Gagal mengambil data agen." }, { status: 500 });
+  }
+  if (!row) {
+    return Response.json(
+      { error: "Nomor WhatsApp atau kode agen tidak cocok." },
+      { status: 404 },
+    );
+  }
+  if (!row.pin_hash) {
+    return Response.json(
+      { error: "PIN belum diatur. Minta admin membuatkan PIN." },
+      { status: 403 },
+    );
+  }
+  if (!verifySecret(pin, row.pin_hash)) {
+    return Response.json({ error: "PIN salah." }, { status: 401 });
+  }
+  return { row: row as AgentRow };
+}
 
 export async function GET(req: Request) {
   if (!isCloud) return cloudRequired();
@@ -20,28 +66,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const wa = formatWaDigits(url.searchParams.get("wa") ?? "");
   const code = normalizeAgentCode(url.searchParams.get("code") ?? "");
+  const pin = String(url.searchParams.get("pin") ?? "");
 
-  if (!wa || wa.length < 8) {
-    return Response.json({ error: "Nomor WhatsApp tidak valid." }, { status: 400 });
-  }
-  if (!code) {
-    return Response.json({ error: "Kode agen wajib diisi." }, { status: 400 });
-  }
-
-  // ambil data agen — harus cocok WA + kode
-  const { data: agentRow, error: aErr } = await db()
-    .from("agents")
-    .select("*")
-    .eq("code", code)
-    .eq("wa", wa)
-    .maybeSingle();
-
-  if (aErr) {
-    return Response.json({ error: "Gagal mengambil data agen." }, { status: 500 });
-  }
-  if (!agentRow) {
-    return Response.json({ error: "Kode agen atau No. WhatsApp tidak cocok." }, { status: 404 });
-  }
+  const auth = await verifyAgent(wa, code, pin);
+  if (auth instanceof Response) return auth;
+  const agentRow = auth.row;
 
   const agent = rowToAgent(agentRow);
 
@@ -124,23 +153,16 @@ export async function PATCH(req: Request) {
   const body = await req.json().catch(() => null);
   if (!body) return Response.json({ error: "Body kosong." }, { status: 400 });
 
+  const tunggu = hitRateLimit(`agen-me:${clientIp(req)}`, AGEN_LIMIT);
+  if (tunggu !== null) return tooManyRequests(tunggu);
+
   const wa = formatWaDigits(String(body.wa ?? ""));
   const code = normalizeAgentCode(body.code ?? "");
-  if (!wa || !code) {
-    return Response.json({ error: "No. WhatsApp dan kode agen wajib diisi." }, { status: 400 });
-  }
+  const pin = String(body.pin ?? "");
 
-  // verifikasi kepemilikan
-  const { data: existing } = await db()
-    .from("agents")
-    .select("code, wa, status")
-    .eq("code", code)
-    .eq("wa", wa)
-    .maybeSingle();
-
-  if (!existing) {
-    return Response.json({ error: "Kode agen atau No. WhatsApp tidak cocok." }, { status: 404 });
-  }
+  // verifikasi kepemilikan (WA + kode + PIN)
+  const auth = await verifyAgent(wa, code, pin);
+  if (auth instanceof Response) return auth;
 
   const patch: Record<string, unknown> = {
     updated_at: new Date().toISOString(),

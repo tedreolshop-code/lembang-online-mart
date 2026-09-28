@@ -958,6 +958,8 @@ export interface AgenAuth {
   code: string;
   wa: string;
   nama: string;
+  /** PIN rahasia — dipakai memverifikasi tiap panggilan dashboard agen. */
+  pin: string;
 }
 
 function readAgenAuth(): AgenAuth | null {
@@ -984,9 +986,14 @@ export function useAgenAuth(): AgenAuth | null {
   return useSyncExternalStore(subscribe, readAgenAuth, () => null);
 }
 
-/** Login agen — simpan sesi di perangkat. */
-export function agenLogin(code: string, wa: string, nama: string): void {
-  writeAgenAuth({ code, wa, nama });
+/** Login agen — simpan sesi di perangkat (termasuk PIN untuk verifikasi). */
+export function agenLogin(
+  code: string,
+  wa: string,
+  nama: string,
+  pin: string,
+): void {
+  writeAgenAuth({ code, wa, nama, pin });
 }
 
 /** Logout agen. */
@@ -1132,7 +1139,7 @@ export async function listAgents(): Promise<Agent[]> {
     `warning` diisi bila sebagian data (mis. mode komisi v9) belum bisa
     tersimpan karena migrasi SQL belum dijalankan. */
 export async function upsertAgent(
-  a: Agent,
+  a: Agent & { pin?: string },
 ): Promise<{ code: string; warning?: string }> {
   if (cloudMode) {
     const res = await api<{ ok: boolean; code: string; warning?: string }>(
@@ -1154,6 +1161,8 @@ export async function upsertAgent(
         ? null
         : Math.min(20, Math.max(1, Math.round(a.commissionPercent))),
   };
+  // jangan simpan PIN polos di localStorage (mode lokal tidak verifikasi PIN)
+  delete (clean as { pin?: string }).pin;
   const arr = readJSON<Agent[]>(KEYS.agents, EMPTY_AGENTS);
   const exists = arr.some((x) => x.code === code);
   writeJSON(
