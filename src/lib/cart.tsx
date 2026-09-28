@@ -34,6 +34,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(CART_KEY);
+      // keranjang hanya bisa dibaca dari localStorage di efek (SSR tak punya
+      // storage); sekali muat, bukan render berantai.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setItems(JSON.parse(raw));
     } catch {
       /* keranjang rusak → mulai kosong */

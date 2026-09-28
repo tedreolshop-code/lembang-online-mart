@@ -9,13 +9,12 @@ import type { Agent, AgentCommission } from "@/lib/types";
 import {
   ChevronRightIcon,
   ClockIcon,
-  PinIcon,
   ReceiptIcon,
   UserIcon,
 } from "@/components/Icons";
 
 /** Dashboard agen: ringkasan komisi + riwayat pesanan + link referral + edit profil.
-    Login: No. WA + kode agen (diberikan saat daftar disetujui admin). */
+    Login: No. WA + kode agen + PIN (diberikan/ diatur admin). */
 
 interface DashboardData {
   agent: Agent;
@@ -63,6 +62,8 @@ export default function AgenDashboardPage() {
   // fetch dashboard data saat auth berubah
   useEffect(() => {
     if (!auth) {
+      // keluar → kosongkan data (sekali, bukan render berantai)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setData(null);
       return;
     }

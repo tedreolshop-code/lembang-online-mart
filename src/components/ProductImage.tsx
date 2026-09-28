@@ -34,6 +34,9 @@ export default function ProductImage({
   const src = product.image?.trim() || `/products/${product.id}.jpg`;
 
   useEffect(() => {
+    // menandai sudah ter-mount agar foto baru dipasang setelah hidrasi —
+    // sinkronisasi sekali dengan browser, bukan render berantai.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -54,6 +57,7 @@ export default function ProductImage({
       style={{ background: cat?.tint ?? "#f1f5f9" }}
     >
       <span className={emojiClassName}>{product.emoji}</span>
+      {/* eslint-disable-next-line @next/next/no-img-element -- fallback berlapis butuh <img> mentah agar onError menangkap 404 */}
       <img
         src={src}
         alt={product.name}

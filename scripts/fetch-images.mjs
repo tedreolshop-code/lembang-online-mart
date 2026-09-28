@@ -1,7 +1,7 @@
 /* Cari & unduh foto produk dari Bing Images → public/products/
    Prioritas: gambar dari domain Indonesia (kemasan sesuai pasar lokal).
    Jalankan: node scripts/fetch-images.mjs */
-import { mkdirSync, writeFileSync, existsSync, statSync, unlinkSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 
 const OUT = "public/products";
 mkdirSync(OUT, { recursive: true });
@@ -140,7 +140,7 @@ for (const [id, query] of Object.entries(QUERIES)) {
       console.log(`ok  (${Math.round(buf.length / 1024)} KB)  ←  ${u.slice(0, 70)}`);
       break;
     }
-  } catch (e) {
+  } catch {
     /* lanjut ke produk berikutnya */
   }
   if (!saved) console.log("GAGAL — pakai emoji");

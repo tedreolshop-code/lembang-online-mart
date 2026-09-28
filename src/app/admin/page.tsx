@@ -167,13 +167,12 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [productCategory, setProductCategory] = useState<string | undefined>();
   const orders = useOrders();
   const pending = orders.filter((o) => o.status === "menunggu").length;
-  const needStock = orders.filter(
-    (o) => o.channel === "whatsapp" && !o.stockApplied,
-  ).length;
 
   useEffect(() => {
     try {
       if (!localStorage.getItem("setupGuideDone")) {
+        // panduan onboarding dibaca sekali dari localStorage (bukan render berantai)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setShowGuide(true);
       }
     } catch {
@@ -1287,6 +1286,8 @@ function LaporanTab() {
   const products = useProducts();
   const [period, setPeriod] = useState<Periode>("hari");
 
+  /* eslint-disable react-hooks/purity -- cut-off laporan: waktu dibaca saat
+     render (bukan state) dan tidak perlu memicu render ulang. */
   const since =
     period === "hari"
       ? new Date().setHours(0, 0, 0, 0)
@@ -1295,6 +1296,7 @@ function LaporanTab() {
         : period === "30hari"
           ? Date.now() - 30 * 86400000
           : 0;
+  /* eslint-enable react-hooks/purity */
 
   const valid = orders.filter(
     (o) => o.status !== "dibatalkan" && o.createdAt >= since,
@@ -1488,7 +1490,7 @@ function PesananTab() {
     <div className="space-y-3">
       <div className="rounded-xl bg-navy-soft p-3 text-xs text-navy sm:text-sm">
         📦 Pesanan <b>form checkout</b> otomatis mengurangi stok. Pesanan{" "}
-        <b>WhatsApp</b>: tekan "Terima" setelah pelanggan konfirmasi agar stok
+        <b>WhatsApp</b>: tekan &quot;Terima&quot; setelah pelanggan konfirmasi agar stok
         juga berkurang.
       </div>
       {orders.map((o: Order) => (
@@ -1692,7 +1694,6 @@ function VoucherTab() {
       });
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const set = (patch: Partial<typeof form>) =>
