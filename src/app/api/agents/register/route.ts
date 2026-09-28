@@ -13,7 +13,7 @@ const DAFTAR_AGEN_LIMIT = { max: 3, windowMs: 60 * 60 * 1000 };
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
 
-  const tunggu = hitRateLimit(`agen-daftar:${clientIp(req)}`, DAFTAR_AGEN_LIMIT);
+  const tunggu = await hitRateLimit(`agen-daftar:${clientIp(req)}`, DAFTAR_AGEN_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
   const body = await req.json().catch(() => null);

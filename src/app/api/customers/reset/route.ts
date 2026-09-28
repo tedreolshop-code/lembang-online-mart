@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
   // ── langkah 2: pasang password baru ─────────────────────────────
   if (body.code !== undefined || body.password !== undefined) {
-    const tunggu = hitRateLimit(`cust-reset2:${clientIp(req)}`, RESET_LIMIT);
+    const tunggu = await hitRateLimit(`cust-reset2:${clientIp(req)}`, RESET_LIMIT);
     if (tunggu !== null) return tooManyRequests(tunggu);
 
     const code = String(body.code ?? "").replace(/\D/g, "");
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
   }
 
   // ── langkah 1: minta kode reset ─────────────────────────────────
-  const tunggu = hitRateLimit(`cust-reset1:${clientIp(req)}`, REQUEST_LIMIT);
+  const tunggu = await hitRateLimit(`cust-reset1:${clientIp(req)}`, REQUEST_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
   // Pengiriman kode HARUS lewat server (Fonnte), bukan wa.me yang dibuka di

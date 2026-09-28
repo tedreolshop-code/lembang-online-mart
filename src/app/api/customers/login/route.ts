@@ -14,7 +14,7 @@ const LOGIN_LIMIT = { max: 8, windowMs: 10 * 60 * 1000 };
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
 
-  const tunggu = hitRateLimit(`cust-login:${clientIp(req)}`, LOGIN_LIMIT);
+  const tunggu = await hitRateLimit(`cust-login:${clientIp(req)}`, LOGIN_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
   const body = await req.json().catch(() => null);

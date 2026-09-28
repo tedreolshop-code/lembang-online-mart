@@ -1,19 +1,21 @@
-/** Pembatas laju sederhana per-IP — untuk endpoint PUBLIK yang menerima
-    identitas (nomor WA, kode pesanan, kode agen).
+/** Pembatas laju per-IP — untuk endpoint PUBLIK yang menerima identitas
+    (nomor WA, kode pesanan, kode agen).
 
-    BATAS KEMAMPUAN (sengaja jujur, jangan dianggap penghalang serius):
-    - Hitungan disimpan di memori proses. Di serverless (Vercel) tiap instance
-      punya memori sendiri dan bisa didaur ulang, jadi penyerang yang menyebar
-      ke banyak instance lambat laun tetap lolos.
-    - Untuk perlindungan serius, ganti penyimpanannya dengan Redis/Upstash —
-      bagian `store` di bawah tinggal ditukar tanpa mengubah pemanggilnya.
+    Dua mode:
+    - DURABLE (disarankan di produksi): bila UPSTASH_REDIS_REST_URL &
+      UPSTASH_REDIS_REST_TOKEN diisi, hitungan disimpan di Upstash Redis
+      sehingga berlaku lintas instance serverless dan tidak hilang saat cold
+      start. Dipakai lewat REST API (tanpa dependensi npm tambahan).
+    - MEMORI (fallback): tanpa kredensial (atau bila Redis bermasalah),
+      hitungan disimpan di memori proses. Di serverless mode ini bisa dilewati
+      penyerang yang menyebar ke banyak instance.
 
-    Tujuannya di sini adalah menaikkan biaya penebakan massal (enumerasi
-    nomor HP / kode) dari "gratis dan instan" menjadi "mahal dan terlihat di
-    log", bukan menutupnya mutlak. */
+    Tujuannya menaikkan biaya penebakan massal (enumerasi nomor HP / kode) dari
+    "gratis dan instan" menjadi "mahal dan terlihat di log". */
 
-const store = new Map<string, number[]>();
-const MAX_ENTRIES = 10000;
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL ?? "";
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
+const durableEnabled = !!UPSTASH_URL && !!UPSTASH_TOKEN;
 
 export interface RateLimit {
   /** Batas percobaan dalam jendela waktu. */
@@ -33,6 +35,11 @@ export function clientIp(req: Request): string {
   );
 }
 
+/* ── mode memori (fallback) ─────────────────────────────────────── */
+
+const store = new Map<string, number[]>();
+const MAX_ENTRIES = 10000;
+
 /** Buang entri kedaluwarsa supaya memori tidak tumbuh selamanya. */
 function sweep(now: number) {
   for (const [key, hits] of store) {
@@ -42,14 +49,8 @@ function sweep(now: number) {
   }
 }
 
-/** Catat satu percobaan. Return `null` bila boleh lanjut, atau lama tunggu
-    (detik) bila sudah melewati batas. */
-export function hitRateLimit(
-  key: string,
-  { max, windowMs }: RateLimit,
-): number | null {
+function memoryHit(key: string, { max, windowMs }: RateLimit): number | null {
   const now = Date.now();
-
   // buang kedaluwarsa saat map mulai besar, agar biayanya tetap jarang
   if (store.size > MAX_ENTRIES) sweep(now);
 
@@ -61,6 +62,53 @@ export function hitRateLimit(
   hits.push(now);
   store.set(key, hits);
   return null;
+}
+
+/* ── mode durable (Upstash Redis via REST) ──────────────────────── */
+
+/** Kirim satu perintah Redis ke Upstash; mengembalikan field `result`. */
+async function redisCommand(cmd: (string | number)[]): Promise<unknown> {
+  const res = await fetch(UPSTASH_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${UPSTASH_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(cmd),
+    signal: AbortSignal.timeout(3000),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`upstash ${res.status}`);
+  const json = (await res.json()) as { result?: unknown };
+  return json?.result;
+}
+
+/** Fixed window: INCR lalu set kedaluwarsa saat hitungan pertama. */
+async function redisHit(key: string, { max, windowMs }: RateLimit): Promise<number | null> {
+  const k = `rl:${key}`;
+  const count = Number(await redisCommand(["INCR", k]));
+  if (count === 1) await redisCommand(["PEXPIRE", k, windowMs]);
+  if (count > max) {
+    const pttl = Number(await redisCommand(["PTTL", k]));
+    return Math.max(1, Math.ceil((pttl > 0 ? pttl : windowMs) / 1000));
+  }
+  return null;
+}
+
+/** Catat satu percobaan. Return `null` bila boleh lanjut, atau lama tunggu
+    (detik) bila sudah melewati batas. */
+export async function hitRateLimit(
+  key: string,
+  limit: RateLimit,
+): Promise<number | null> {
+  if (durableEnabled) {
+    try {
+      return await redisHit(key, limit);
+    } catch {
+      // Redis bermasalah → JANGAN matikan pembatas; pakai memori sementara.
+    }
+  }
+  return memoryHit(key, limit);
 }
 
 /** Jawaban 429 standar (Retry-After dalam detik). */

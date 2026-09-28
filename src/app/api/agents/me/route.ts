@@ -60,7 +60,7 @@ async function verifyAgent(
 export async function GET(req: Request) {
   if (!isCloud) return cloudRequired();
 
-  const tunggu = hitRateLimit(`agen-me:${clientIp(req)}`, AGEN_LIMIT);
+  const tunggu = await hitRateLimit(`agen-me:${clientIp(req)}`, AGEN_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
   const url = new URL(req.url);
@@ -153,7 +153,7 @@ export async function PATCH(req: Request) {
   const body = await req.json().catch(() => null);
   if (!body) return Response.json({ error: "Body kosong." }, { status: 400 });
 
-  const tunggu = hitRateLimit(`agen-me:${clientIp(req)}`, AGEN_LIMIT);
+  const tunggu = await hitRateLimit(`agen-me:${clientIp(req)}`, AGEN_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
   const wa = formatWaDigits(String(body.wa ?? ""));

@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
 
   const ip = clientIp(req);
-  const tunggu = hitRateLimit(`customers:${ip}`, DAFTAR_LIMIT);
+  const tunggu = await hitRateLimit(`customers:${ip}`, DAFTAR_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
   const body = await req.json().catch(() => null);

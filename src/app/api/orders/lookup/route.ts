@@ -15,7 +15,7 @@ const LOOKUP_LIMIT = { max: 30, windowMs: 60 * 1000 };
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
 
-  const tunggu = hitRateLimit(`lookup:${clientIp(req)}`, LOOKUP_LIMIT);
+  const tunggu = await hitRateLimit(`lookup:${clientIp(req)}`, LOOKUP_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
   const body = await req.json();
