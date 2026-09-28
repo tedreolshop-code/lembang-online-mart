@@ -108,6 +108,9 @@ let cloudSettings: StoreSettings = DEFAULT_SETTINGS;
 /** Pesan salah-konfigurasi server yang HARUS terlihat — bukan disembunyikan.
     Diisi oleh probeHealth() saat boot (mode cloud) untuk banner. */
 let configError: string | null = null;
+/** Pesan kegagalan sinkronisasi terakhir (API tidak terjangkau / 503 / 500).
+    Diisi safeRefresh() supaya toko tidak diam-diam menyajikan data basi. */
+let syncError: string | null = null;
 
 function myOrderIds(): string[] {
   try {
@@ -218,23 +221,41 @@ async function probeHealth(): Promise<void> {
   }
 }
 
+/** Jalankan refresh dan rekam kegagalannya (dulu `catch(() => {})` menelan
+    semua error → UI tetap menampilkan data seed/basi tanpa penjelasan). */
+async function safeRefresh(fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+    if (syncError !== null) {
+      syncError = null;
+      emit();
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Gagal sinkron dengan server.";
+    if (msg !== syncError) {
+      syncError = msg;
+      emit();
+    }
+  }
+}
+
 function ensureCloudBoot() {
   if (booted || typeof window === "undefined") return;
   booted = true;
   void probeHealth();
-  void refreshProducts().catch(() => {});
-  void refreshSettings().catch(() => {});
-  void refreshOrders().catch(() => {});
+  void safeRefresh(refreshProducts);
+  void safeRefresh(refreshSettings);
+  void safeRefresh(refreshOrders);
   // sinkron berkala + saat tab kembali aktif
   setInterval(() => {
-    void refreshProducts().catch(() => {});
-    void refreshSettings().catch(() => {});
-    void refreshOrders().catch(() => {});
+    void safeRefresh(refreshProducts);
+    void safeRefresh(refreshSettings);
+    void safeRefresh(refreshOrders);
   }, 15000);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
-      void refreshProducts().catch(() => {});
-      void refreshOrders().catch(() => {});
+      void safeRefresh(refreshProducts);
+      void safeRefresh(refreshOrders);
     }
   });
 }
@@ -244,6 +265,11 @@ function ensureCloudBoot() {
 /** Pesan salah-konfigurasi mode cloud (null bila normal) — untuk banner. */
 export function useConfigError(): string | null {
   return useSyncExternalStore(subscribe, () => configError, () => null);
+}
+
+/** Pesan kegagalan sinkronisasi terakhir (null bila normal) — untuk banner. */
+export function useSyncError(): string | null {
+  return useSyncExternalStore(subscribe, () => syncError, () => null);
 }
 
 export function useProducts(): Product[] {

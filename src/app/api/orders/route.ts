@@ -214,7 +214,12 @@ export async function POST(req: Request) {
         ? await withSecrets(rowToSettings(sRow))
         : DEFAULT_SETTINGS;
       after(async () => {
-        await sendOrderNotification(settings, order);
+        const res = await sendOrderNotification(settings, order);
+        // kegagalan kirim tidak boleh hilang begitu saja — pemilik bisa
+        // tidak pernah tahu ada pesanan masuk. Catat ke log server.
+        if (!res.sent && res.error) {
+          console.error(`[notify] pesanan ${order.id} gagal dikirim: ${res.error}`);
+        }
       });
       // endpoint ini publik → HPP yang ikut tersimpan di order_items
       // dibuang sebelum dikirim balik ke pembeli.

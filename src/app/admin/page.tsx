@@ -1440,14 +1440,19 @@ function PesananTab() {
     );
   }
 
-  const terima = async (o: Order) => {
-    await acceptOrder(o);
-  };
-
-  // tampilkan toast lalu hilangkan otomatis (pesanan dihapus / gagal)
+  // tampilkan toast lalu hilangkan otomatis (diterima / gagal / dihapus)
   const showToast = (ok: boolean, text: string) => {
     setToast({ ok, text });
     window.setTimeout(() => setToast(null), 3500);
+  };
+
+  const terima = async (o: Order) => {
+    try {
+      await acceptOrder(o);
+      showToast(true, `Pesanan ${o.id} diterima & stok dikurangi.`);
+    } catch (err) {
+      showToast(false, err instanceof Error ? err.message : "Gagal menerima pesanan.");
+    }
   };
 
   // hapus permanen: konfirmasi ketik id → baru dihapus + notifikasi hasil
@@ -1538,9 +1543,20 @@ function PesananTab() {
               )}
               <select
                 value={o.status}
-                onChange={(e) =>
-                  updateOrderStatus(o.id, e.target.value as OrderStatus)
-                }
+                onChange={async (e) => {
+                  const next = e.target.value as OrderStatus;
+                  try {
+                    await updateOrderStatus(o.id, next);
+                    if (next === "dibatalkan") {
+                      showToast(true, "Pesanan dibatalkan & stok dikembalikan.");
+                    }
+                  } catch (err) {
+                    showToast(
+                      false,
+                      err instanceof Error ? err.message : "Gagal mengubah status.",
+                    );
+                  }
+                }}
                 className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold capitalize outline-none"
               >
                 <option value="menunggu">menunggu</option>
@@ -1553,11 +1569,19 @@ function PesananTab() {
                   type="button"
                   onClick={async () => {
                     if (
-                      confirm(
+                      !confirm(
                         `Batalkan pesanan ${o.id}? Stok yang sudah dikurangi akan dikembalikan.`,
                       )
-                    ) {
+                    )
+                      return;
+                    try {
                       await cancelOrder(o);
+                      showToast(true, "Pesanan dibatalkan & stok dikembalikan.");
+                    } catch (err) {
+                      showToast(
+                        false,
+                        err instanceof Error ? err.message : "Gagal membatalkan pesanan.",
+                      );
                     }
                   }}
                   title="Batalkan pesanan & kembalikan stok"
