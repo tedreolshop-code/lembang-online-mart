@@ -12,6 +12,9 @@ import { NextResponse, type NextRequest } from "next/server";
  * Domain aktif diset lewat env NEXT_PUBLIC_STORE_ORIGIN (mis.
  * https://lembangonlinemart.com) agar bisa diganti tanpa deploy ulang kode;
  * tanpa env, semua host kecuali localhost dianggap domain produksi.
+ *
+ * Catatan Next 16: berkas ini dulu bernama `middleware.ts` — sekarang
+ * `proxy.ts` (fungsi `proxy`) dengan perilaku yang sama.
  */
 
 const SUBDOMAIN_TARGETS: Record<string, string> = {
@@ -19,7 +22,7 @@ const SUBDOMAIN_TARGETS: Record<string, string> = {
   agen: "/agen/dashboard",
 };
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0];
   const parts = host.split(".");
 
