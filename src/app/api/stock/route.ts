@@ -26,7 +26,9 @@ export async function POST(req: Request) {
     newStock = Math.max(0, Number(body.stock) || 0);
     reason = "set";
   } else {
-    newStock = Math.max(0, cur.stock - (Number(body.delta) || 0));
+    // delta bertanda, sama seperti mode lokal (`p.stock + delta`):
+    // tombol "Kurangi" mengirim -1, "Tambah" mengirim +1.
+    newStock = Math.max(0, cur.stock + (Number(body.delta) || 0));
     reason = "adjust";
   }
 

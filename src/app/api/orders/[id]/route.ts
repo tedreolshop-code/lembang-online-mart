@@ -70,33 +70,39 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const row: Record<string, unknown> = {};
+  // "batalkan" bisa datang dari tombol Batalkan (body.cancel) ATAU dari
+  // dropdown status (body.status === "dibatalkan"). Keduanya harus
+  // mengembalikan stok — dan hanya sekali, dijaga oleh stock_applied.
+  const wantsCancel = body.cancel === true || body.status === "dibatalkan";
 
   // batalkan pesanan → kembalikan stok + catat movement "cancel"
-  if (body.cancel && order.status !== "dibatalkan") {
-    for (const item of order.order_items ?? []) {
-      if (!item.product_id) continue;
-      const { data: p } = await db()
-        .from("products")
-        .select("stock")
-        .eq("id", item.product_id)
-        .single();
-      const newStock = (p?.stock ?? 0) + item.qty;
-      await db()
-        .from("products")
-        .update({ stock: newStock, updated_at: new Date().toISOString() })
-        .eq("id", item.product_id);
-      await db().from("stock_movements").insert({
-        product_id: item.product_id,
-        delta: item.qty,
-        reason: "cancel",
-        order_id: id,
-      });
+  if (wantsCancel && order.status !== "dibatalkan") {
+    if (order.stock_applied) {
+      for (const item of order.order_items ?? []) {
+        if (!item.product_id) continue;
+        const { data: p } = await db()
+          .from("products")
+          .select("stock")
+          .eq("id", item.product_id)
+          .single();
+        const newStock = (p?.stock ?? 0) + item.qty;
+        await db()
+          .from("products")
+          .update({ stock: newStock, updated_at: new Date().toISOString() })
+          .eq("id", item.product_id);
+        await db().from("stock_movements").insert({
+          product_id: item.product_id,
+          delta: item.qty,
+          reason: "cancel",
+          order_id: id,
+        });
+      }
     }
     row.status = "dibatalkan";
     row.stock_applied = false;
   }
 
-  if (body.accept && !order.stock_applied) {
+  if (body.accept && !order.stock_applied && !wantsCancel) {
     // kurangi stok per item + catat movement "receive"
     for (const item of order.order_items ?? []) {
       if (!item.product_id) continue;
@@ -121,7 +127,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     row.status = body.status ?? "diproses";
   }
 
-  if (body.status) row.status = body.status;
+  if (body.status && !wantsCancel) row.status = body.status;
 
   if (Object.keys(row).length === 0) {
     return Response.json({ ok: true });

@@ -548,13 +548,16 @@ export async function cancelOrder(o: Order): Promise<void> {
     ),
   );
   syncLocalCommission(o.id, o.status, "dibatalkan");
-  writeJSON(
-    KEYS.products,
-    readJSON<Product[]>(KEYS.products, SEED_PRODUCTS).map((p) => {
-      const item = o.items.find((i) => i.productId === p.id);
-      return item ? { ...p, stock: p.stock + item.qty } : p;
-    }),
-  );
+  // kembalikan stok HANYA bila memang pernah dikurangi (sekali saja)
+  if (o.stockApplied) {
+    writeJSON(
+      KEYS.products,
+      readJSON<Product[]>(KEYS.products, SEED_PRODUCTS).map((p) => {
+        const item = o.items.find((i) => i.productId === p.id);
+        return item ? { ...p, stock: p.stock + item.qty } : p;
+      }),
+    );
+  }
 }
 
 /** Hapus pesanan permanen dari daftar (Admin → Pesanan).
@@ -612,11 +615,28 @@ export async function updateOrderStatus(
     return;
   }
   const orders = readJSON<Order[]>(KEYS.orders, EMPTY_ORDERS);
-  const before = orders.find((o) => o.id === id)?.status;
+  const current = orders.find((o) => o.id === id);
+  const before = current?.status;
+  // pembatalan lewat dropdown status juga mengembalikan stok — sekali saja,
+  // dijaga oleh stockApplied (cermin PATCH /api/orders/[id]).
+  const cancelling = status === "dibatalkan" && before !== "dibatalkan";
   writeJSON(
     KEYS.orders,
-    orders.map((o) => (o.id === id ? { ...o, status } : o)),
+    orders.map((o) =>
+      o.id === id
+        ? { ...o, status, ...(cancelling ? { stockApplied: false } : {}) }
+        : o,
+    ),
   );
+  if (cancelling && current?.stockApplied) {
+    writeJSON(
+      KEYS.products,
+      readJSON<Product[]>(KEYS.products, SEED_PRODUCTS).map((p) => {
+        const item = current.items.find((i) => i.productId === p.id);
+        return item ? { ...p, stock: p.stock + item.qty } : p;
+      }),
+    );
+  }
   // ledger komisi mengikuti status (mode lokal) — sama seperti API v6
   if (status !== before) syncLocalCommission(id, before, status);
 }
