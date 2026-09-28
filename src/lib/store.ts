@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { SEED_PRODUCTS } from "@/data/seed";
 import { DEFAULT_SETTINGS, formatWaDigits, hitungOngkir, normalizeSettings } from "./config";
 import type { ShipOption, StoreSettings } from "./config";
-import { cloudMode, authHeaders } from "./auth";
+import { cloudMode, authHeaders, hasAdminSession } from "./auth";
 import { couponDiscount } from "./coupon";
 import { newOrderId } from "./format";
 import {
@@ -192,7 +192,7 @@ const refreshSettings = async () => {
   emit();
 };
 const refreshOrders = async () => {
-  cloudOrders = authHeaders().Authorization
+  cloudOrders = hasAdminSession()
     ? await api<Order[]>("/api/orders")
     : await api<Order[]>("/api/orders/lookup", {
         method: "POST",

@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { ADMIN_COOKIE, readCookie } from "./admin-cookie";
 
 /** Mode cloud aktif bila kredensial Supabase terisi di .env.
     Tanpa kredensial, seluruh situs memakai mode lokal (localStorage). */
@@ -61,9 +62,13 @@ export async function requireAdmin(
   req: Request,
 ): Promise<{ id: string; email?: string } | null> {
   if (!isCloud) return null;
-  const token = (req.headers.get("authorization") ?? "")
-    .replace(/^Bearer\s+/i, "")
-    .trim();
+  // Sesi utama lewat cookie HttpOnly; header Authorization tetap diterima
+  // sebagai cadangan (mis. pemanggilan langsung dengan bearer token).
+  const token =
+    readCookie(req, ADMIN_COOKIE) ??
+    (req.headers.get("authorization") ?? "")
+      .replace(/^Bearer\s+/i, "")
+      .trim();
   if (!token) return null;
   const anon = createClient(SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "");
   const { data } = await anon.auth.getUser(token);

@@ -1,7 +1,5 @@
 "use client";
 
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-
 /** Mode cloud untuk sisi browser — env NEXT_PUBLIC_* di-inline saat build,
     jadi berganti mode perlu `npm run build` ulang.
     Butuh URL DAN anon key agar tidak menganggap cloud saat env setengah jalan;
@@ -10,50 +8,27 @@ export const cloudMode =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
   !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const AUTH_KEY = "los_admin_auth_v1";
+/** Penanda NON-RAHASIA bahwa admin sudah login (untuk gating UI). Kebenaran
+    sesungguhnya ada di cookie HttpOnly `los_admin` yang dibaca server — token
+    tidak pernah disimpan di JavaScript/sessionStorage (aman dari XSS). */
+const ADMIN_EMAIL_KEY = "los_admin_email";
 const LOCAL_SESSION_KEY = "los_admin_session";
-let browserClient: SupabaseClient | null = null;
 
-function getClient(): SupabaseClient {
-  if (!browserClient) {
-    browserClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-    );
-  }
-  return browserClient;
-}
-
-interface AdminSession {
-  access_token: string;
-  email?: string;
-}
-
-function readSession(): AdminSession | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(AUTH_KEY);
-    return raw ? (JSON.parse(raw) as AdminSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Header auth untuk memanggil API (mode cloud) */
+/** Header auth untuk memanggil API. Sesi admin kini berupa cookie HttpOnly
+    yang dikirim browser otomatis untuk permintaan same-origin, jadi tidak ada
+    header yang perlu diset. Dibiarkan ada agar pemanggil lama tetap jalan. */
 export function authHeaders(): Record<string, string> {
-  const session = readSession();
-  return session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}` }
-    : {};
+  return {};
 }
 
 export function adminEmail(): string | undefined {
-  return readSession()?.email;
+  if (typeof window === "undefined") return undefined;
+  return sessionStorage.getItem(ADMIN_EMAIL_KEY) ?? undefined;
 }
 
 export function hasAdminSession(): boolean {
   if (typeof window === "undefined") return false;
-  if (cloudMode) return !!readSession()?.access_token;
+  if (cloudMode) return !!sessionStorage.getItem(ADMIN_EMAIL_KEY);
   return sessionStorage.getItem(LOCAL_SESSION_KEY) === "1";
 }
 
@@ -62,31 +37,30 @@ export function localLogin(): void {
   sessionStorage.setItem(LOCAL_SESSION_KEY, "1");
 }
 
-/** Login admin. Mode cloud: Supabase Auth (email+password).
-    Mode lokal: password sederhana dari pengaturan — divalidasi pemanggil. */
+/** Login admin mode cloud: verifikasi di SERVER lalu simpan token di cookie
+    HttpOnly. Mode lokal memakai localLogin(). */
 export async function adminLogin(
   email: string,
   password: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { data, error } = await getClient().auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (error || !data.session) {
-    return { ok: false, error: error?.message ?? "Login gagal." };
+  try {
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const body = (await res.json().catch(() => null)) as
+      | { error?: string; email?: string }
+      | null;
+    if (!res.ok) return { ok: false, error: body?.error ?? "Login gagal." };
+    sessionStorage.setItem(ADMIN_EMAIL_KEY, body?.email ?? email);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Gagal menghubungi server." };
   }
-  sessionStorage.setItem(
-    AUTH_KEY,
-    JSON.stringify({
-      access_token: data.session.access_token,
-      email: data.user.email ?? email,
-    }),
-  );
-  return { ok: true };
 }
 
-/** Pastikan sesi tersimpan benar-benar milik admin terdaftar (mode cloud).
-    Return error berisi pesan siap tampil bila bukan. */
+/** Pastikan sesi benar-benar milik admin terdaftar (mode cloud). */
 export async function verifyAdminSession(): Promise<{
   ok: boolean;
   error?: string;
@@ -94,7 +68,7 @@ export async function verifyAdminSession(): Promise<{
   if (!cloudMode) return { ok: true };
   if (!hasAdminSession()) return { ok: false, error: "Sesi tidak ditemukan." };
   try {
-    const res = await fetch("/api/admin/whoami", { headers: authHeaders() });
+    const res = await fetch("/api/admin/whoami", { cache: "no-store" });
     if (res.ok) return { ok: true };
     const body = (await res.json().catch(() => null)) as {
       error?: string;
@@ -111,13 +85,16 @@ export async function verifyAdminSession(): Promise<{
 }
 
 export async function adminLogout(): Promise<void> {
-  if (cloudMode && readSession()) {
-    try {
-      await getClient().auth.signOut();
-    } catch {
-      /* abaikan */
-    }
+  try {
+    sessionStorage.removeItem(ADMIN_EMAIL_KEY);
+    sessionStorage.removeItem(LOCAL_SESSION_KEY);
+  } catch {
+    /* storage bisa diblokir */
   }
-  sessionStorage.removeItem(AUTH_KEY);
-  sessionStorage.removeItem(LOCAL_SESSION_KEY);
+  if (!cloudMode) return;
+  try {
+    await fetch("/api/admin/logout", { method: "POST" });
+  } catch {
+    /* abaikan */
+  }
 }
