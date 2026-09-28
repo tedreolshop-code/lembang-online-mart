@@ -558,6 +558,12 @@ function ProdukTab({ initialCategory }: { initialCategory?: string }) {
   const { categories, ready, refresh } = useCategoryCatalog();
   const [editing, setEditing] = useState<Product | null>(initialCategory ? { ...EMPTY_FORM, category: initialCategory } : null);
   const [showForm, setShowForm] = useState(!!initialCategory);
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const showToast = (ok: boolean, text: string) => {
+    setToast({ ok, text });
+    window.setTimeout(() => setToast(null), 3500);
+  };
 
   const startAdd = () => {
     setEditing({ ...EMPTY_FORM, category: categories[0]?.slug ?? "" });
@@ -570,8 +576,12 @@ function ProdukTab({ initialCategory }: { initialCategory?: string }) {
   };
 
   const remove = async (p: Product) => {
-    if (confirm(`Hapus produk "${p.name}"?`)) {
+    if (!confirm(`Hapus produk "${p.name}"?`)) return;
+    try {
       await deleteProduct(p.id);
+      showToast(true, `✅ "${p.name}" berhasil dihapus.`);
+    } catch (err) {
+      showToast(false, err instanceof Error ? err.message : "Gagal menghapus produk.");
     }
   };
 
@@ -720,6 +730,16 @@ function ProdukTab({ initialCategory }: { initialCategory?: string }) {
           </tbody>
         </table>
       </div>
+      {toast && (
+        <div
+          role="status"
+          className={`fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-bold text-white shadow-lg transition ${
+            toast.ok ? "bg-emerald-600" : "bg-red-600"
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }

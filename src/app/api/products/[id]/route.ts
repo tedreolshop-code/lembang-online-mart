@@ -69,7 +69,14 @@ export async function DELETE(req: Request, ctx: Ctx) {
   if (!isCloud) return cloudRequired();
   if (!(await requireAdmin(req))) return unauthorized();
   const { id } = await ctx.params;
-  const { error } = await db().from("products").delete().eq("id", id);
+
+  // delete_product(p_id) menangani relasi secara atomik di DB
+  // (migrasi v13: order_items ON DELETE SET NULL,
+  // stock_movements ON DELETE CASCADE).
+  const { data: count, error } = await db().rpc("delete_product", { p_id: id });
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (!count) {
+    return Response.json({ error: "Produk tidak ditemukan." }, { status: 404 });
+  }
   return Response.json({ ok: true });
 }
