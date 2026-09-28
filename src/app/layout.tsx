@@ -8,6 +8,7 @@ import BottomNav from "@/components/BottomNav";
 import FloatingWa from "@/components/FloatingWa";
 import ThemeStyle from "@/components/ThemeStyle";
 import RefCapture from "@/components/RefCapture";
+import ConfigErrorBanner from "@/components/ConfigErrorBanner";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { getThemeColors } from "@/lib/server-theme";
 import { getInitialCategories } from "@/lib/server-categories";
@@ -128,6 +129,7 @@ export default async function RootLayout({
             <Suspense fallback={null}>
               <RefCapture />
             </Suspense>
+            <ConfigErrorBanner />
             <Header />
             <main className="mx-auto w-full max-w-6xl flex-1 px-3 pb-10 pt-4 sm:px-6">
               {children}

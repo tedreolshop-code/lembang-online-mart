@@ -105,6 +105,9 @@ let booted = false;
 let cloudProducts: Product[] = SEED_PRODUCTS;
 let cloudOrders: Order[] = [];
 let cloudSettings: StoreSettings = DEFAULT_SETTINGS;
+/** Pesan salah-konfigurasi server yang HARUS terlihat — bukan disembunyikan.
+    Diisi oleh probeHealth() saat boot (mode cloud) untuk banner. */
+let configError: string | null = null;
 
 function myOrderIds(): string[] {
   try {
@@ -194,9 +197,31 @@ const refreshOrders = async () => {
   emit();
 };
 
+/** Cek sekali apakah server benar-benar mode cloud. Bila client mengira
+    cloud tapi server tidak (env setengah jalan), tampilkan banner alih-alih
+    menyajikan data seed tanpa penjelasan. */
+async function probeHealth(): Promise<void> {
+  try {
+    const res = await fetch("/api/health", { cache: "no-store" });
+    const h = (await res.json().catch(() => null)) as
+      | { cloud?: boolean; error?: string | null }
+      | null;
+    if (h && h.cloud === false) {
+      configError = h.error ?? "Server belum terhubung ke database.";
+      emit();
+    } else if (h) {
+      configError = null;
+    }
+  } catch {
+    configError = "Tidak bisa menghubungi server.";
+    emit();
+  }
+}
+
 function ensureCloudBoot() {
   if (booted || typeof window === "undefined") return;
   booted = true;
+  void probeHealth();
   void refreshProducts().catch(() => {});
   void refreshSettings().catch(() => {});
   void refreshOrders().catch(() => {});
@@ -215,6 +240,11 @@ function ensureCloudBoot() {
 }
 
 /* ── produk ───────────────────────────────────────────────────── */
+
+/** Pesan salah-konfigurasi mode cloud (null bila normal) — untuk banner. */
+export function useConfigError(): string | null {
+  return useSyncExternalStore(subscribe, () => configError, () => null);
+}
 
 export function useProducts(): Product[] {
   return useSyncExternalStore(

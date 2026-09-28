@@ -3,8 +3,12 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 /** Mode cloud untuk sisi browser — env NEXT_PUBLIC_* di-inline saat build,
-    jadi berganti mode perlu `npm run build` ulang. */
-export const cloudMode = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+    jadi berganti mode perlu `npm run build` ulang.
+    Butuh URL DAN anon key agar tidak menganggap cloud saat env setengah jalan;
+    sisa ketidakcocokan (kunci server) dideteksi lewat /api/health. */
+export const cloudMode =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const AUTH_KEY = "los_admin_auth_v1";
 const LOCAL_SESSION_KEY = "los_admin_session";

@@ -3,8 +3,16 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 /** Mode cloud aktif bila kredensial Supabase terisi di .env.
     Tanpa kredensial, seluruh situs memakai mode lokal (localStorage). */
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-export const isCloud =
-  !!SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+const HAS_SERVICE_KEY = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const isCloud = !!SUPABASE_URL && HAS_SERVICE_KEY;
+
+/** Konfigurasi setengah jalan: URL publik terisi tapi kunci server kosong.
+    Client akan menganggap dirinya mode cloud (lib/auth.ts) sementara SEMUA
+    API membalas 503 — dulu ini jatuh diam-diam ke data seed. Deteksi ini
+    membuat salah-konfigurasi terlihat lewat /api/health & banner. */
+export function isCloudMisconfigured(): boolean {
+  return !!SUPABASE_URL && !HAS_SERVICE_KEY;
+}
 
 let adminClient: SupabaseClient | null = null;
 
@@ -74,7 +82,11 @@ export async function requireAdmin(
 /** Respons seragam untuk endpoint yang butuh mode cloud */
 export function cloudRequired() {
   return Response.json(
-    { error: "Mode lokal aktif — endpoint ini hanya dipakai saat database cloud terhubung." },
+    {
+      error: isCloudMisconfigured()
+        ? "Konfigurasi server belum lengkap: SUPABASE_SERVICE_ROLE_KEY kosong. Isi di .env lalu build ulang."
+        : "Mode lokal aktif — endpoint ini hanya dipakai saat database cloud terhubung.",
+    },
     { status: 503 },
   );
 }
