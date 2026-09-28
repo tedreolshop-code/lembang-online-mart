@@ -93,6 +93,13 @@ export function commissionFor(
   return { percent, amount };
 }
 
+/** Komisi mode "harga" (v15): untung agen = margin kotor pesanan
+    = Σ (harga jual efektif − HPP) × qty = subtotal − total HPP.
+    Tidak memakai aturan persen/nominal global. Nilai negatif dijepit ke 0. */
+export function marginCommission(subtotal: number, totalCost: number): number {
+  return Math.max(0, Math.round(subtotal - totalCost));
+}
+
 /** Pembelian sendiri oleh agen → komisi 0 (pengaman utama anti-akal-akalan). */
 export function isSelfPurchase(customerPhone: string, agentWa: string): boolean {
   const a = normalizeWa(customerPhone);

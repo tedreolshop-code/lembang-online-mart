@@ -2587,8 +2587,9 @@ function AgenTab() {
         </label>
         {form.commissionMode === "price" ? (
           <p className="self-end rounded-lg bg-brand-soft px-3 py-2 text-xs leading-relaxed text-slate-600">
-            Keuntungan agen dari <b>selisih harga khusus</b> — tidak pakai
-            komisi persen. Harga wajib diisi per produk di bagian{" "}
+            Komisi = <b>margin kotor</b>: (harga jual − HPP) × jumlah, dihitung
+            dari harga khusus agen + HPP produk. Tidak memakai komisi persen.
+            Isi <b>HPP</b> tiap produk dan <b>harga khusus</b> di bagian{" "}
             <b>🏷️ Harga Khusus Agen</b> setelah agen tersimpan.
           </p>
         ) : (
@@ -2655,7 +2656,7 @@ function AgenTab() {
                 <p className="mt-0.5 text-xs text-slate-500">
                   {a.wa}
                   {a.commissionMode === "price"
-                    ? ` · harga khusus (${(agentPrices ?? []).filter((x) => x.agentCode === a.code).length} produk)`
+                    ? ` · mode margin (${(agentPrices ?? []).filter((x) => x.agentCode === a.code).length} produk)`
                     : a.commissionPercent != null &&
                       ` · komisi khusus ${a.commissionPercent}%`}
                   {a.payTarget && ` · ${a.payMethod}: ${a.payTarget}`}

@@ -19,8 +19,10 @@
 --   v12 akun pelanggan berpassword + lupa password
 --   v13 produk dapat dihapus walau pernah masuk pesanan/stok
 --   v14 create_order: kuota voucher atomik, batas harga agen, cek qty
+--   v15 komisi mode "harga" = margin (harga jual − HPP); batas harga agen
+--       hanya untuk mode persen
 --
--- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v14 yang
+-- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v15 yang
 -- belum pernah dijalankan (semua idempotent / aman diulang).
 -- Aman diulang: seluruh file ini juga idempotent.
 -- ============================================================
@@ -295,6 +297,7 @@ declare
   v_tier     int;
   v_aprice   int;
   v_subtotal int := 0;
+  v_total_cost int := 0;               -- Σ HPP × qty (dasar komisi mode harga)
   v_total    int;
   v_agent    agents%rowtype;
   v_cs       commission_settings%rowtype;
@@ -337,6 +340,7 @@ begin
       v_price := v_tier;
     end if;
 
+    v_total_cost := v_total_cost + v_product.cost_price * v_qty;
     v_lines := v_lines || jsonb_build_object(
       'productId', v_product.id, 'qty', v_qty, 'price', v_price);
   end loop;
@@ -365,11 +369,12 @@ begin
             from agent_prices ap
             where ap.agent_code = v_code
               and ap.product_id = v_item->>'productId';
-          -- harga khusus agen hanya dipakai bila LEBIH MURAH dari harga
-          -- efektif saat itu (normal/grosir) — pembeli tak bisa ditagih lebih
-          -- mahal dari harga toko karena salah set harga agen.
+          -- mode persen: harga agen hanya dipakai bila LEBIH MURAH (proteksi
+          -- pembeli dari salah set). mode harga: markup diperbolehkan karena
+          -- komisi agen = margin (harga jual − HPP).
           if v_aprice is not null and v_aprice > 0
-             and v_aprice < (v_item->>'price')::int then
+             and (v_agent.commission_mode = 'price'
+                  or v_aprice < (v_item->>'price')::int) then
             v_item := jsonb_set(v_item, '{price}', to_jsonb(v_aprice));
           end if;
           v_adj := v_adj || v_item;
@@ -394,6 +399,10 @@ begin
       v_note := 'agen belum aktif';
     elsif v_phone <> '' and v_phone = v_agenwa then
       v_note := 'pembelian sendiri — komisi 0';
+    elsif v_agent.commission_mode = 'price' then
+      -- (v15) mode harga: untung agen = margin kotor = subtotal − total HPP
+      v_basis := v_subtotal;
+      v_komisi := greatest(0, v_subtotal - v_total_cost);
     else
       v_basis := case when v_cs.basis = 'subtotal'
                       then v_subtotal

@@ -17,6 +17,7 @@ import {
   commissionBasis,
   commissionFor,
   isSelfPurchase,
+  marginCommission,
   newAgentCode,
   normalizeAgentCode,
   readyAtFrom,
@@ -464,7 +465,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     coupon = c.code;
   }
 
-  // ── komisi agen (v6) — cermin create_order di database ──────────
+  // ── komisi agen (v6/v15) — cermin create_order di database ──────
   let agentCommission = 0;
   let commissionRow: AgentCommission | null = null;
   if (agent) {
@@ -474,6 +475,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     );
     const basis = commissionBasis(subtotal, discount, cs.basis);
     let percent = 0;
+    let basisAmount = basis;
     let note = "";
     if (!cs.aktif) {
       note = "program komisi sedang tidak aktif";
@@ -481,6 +483,15 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
       note = "agen belum aktif";
     } else if (isSelfPurchase(draft.customer.phone, agent.wa)) {
       note = "pembelian sendiri — komisi 0";
+    } else if (agent.commissionMode === "price") {
+      // mode harga (v15): untung agen = margin kotor = subtotal − total HPP
+      const totalCost = lines.reduce(
+        (a, l) => a + (l.product.costPrice ?? 0) * l.qty,
+        0,
+      );
+      basisAmount = subtotal;
+      agentCommission = marginCommission(subtotal, totalCost);
+      note = "mode harga: margin (harga jual − HPP)";
     } else if (basis < cs.minOrderAmount) {
       note = "di bawah minimum belanja untuk komisi";
     } else {
@@ -492,7 +503,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
       id: Date.now(),
       orderId: "", // diisi setelah id pesanan dibuat (di bawah)
       agentCode,
-      basisAmount: basis,
+      basisAmount,
       percentUsed: percent,
       amount: agentCommission,
       overrideAmount: null,

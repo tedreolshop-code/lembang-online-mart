@@ -269,9 +269,9 @@ Cara mengaktifkan mode cloud:
    (membuat tabel, fungsi transaksi `create_order`, keamanan RLS, dan bucket
    foto `product-images`).
    - Database yang sudah dibuat dengan skema versi lama: jalankan migrasi
-     berurutan `sql/alter-v2.sql` → … → `sql/alter-v14.sql` (semua aman
+     berurutan `sql/alter-v2.sql` → … → `sql/alter-v15.sql` (semua aman
      diulang / idempotent). Mulai versi ini **`sql/schema.sql` sudah FINAL** —
-     sudah memuat seluruh perubahan v1–v14, jadi project baru cukup
+     sudah memuat seluruh perubahan v1–v15, jadi project baru cukup
      menjalankan file itu saja.
 3. Dashboard → **Authentication → Users → Add user** → buat akun admin
    (email + password) untuk login halaman admin.
@@ -304,8 +304,8 @@ src/
                   auth.ts (sesi admin), cart.tsx, config.ts, whatsapp.ts,
                   pricing.ts (harga grosir), agent.ts (logika komisi agen)
   data/seed.ts  → kategori + produk awal
-sql/schema.sql  → skema database Supabase FINAL (tabel, RLS, create_order v9,
+sql/schema.sql  → skema database Supabase FINAL (tabel, RLS, create_order v15,
                   delete_product, akun pelanggan) — cukup ini untuk project baru
-sql/alter-v*.sql → migrasi bertahap untuk database lama (terakhir v14)
+sql/alter-v*.sql → migrasi bertahap untuk database lama (terakhir v15)
 scripts/        → shots.mjs (screenshot), fetch-images.mjs (foto produk)
 ```
