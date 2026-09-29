@@ -17,6 +17,12 @@ const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL ?? "";
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
 const durableEnabled = !!UPSTASH_URL && !!UPSTASH_TOKEN;
 
+/** Mode pembatas laju yang sedang aktif — untuk ditampilkan di /api/health
+    supaya pemilik mudah memverifikasi apakah Upstash sudah terpasang. */
+export function rateLimitMode(): "durable" | "memory" {
+  return durableEnabled ? "durable" : "memory";
+}
+
 export interface RateLimit {
   /** Batas percobaan dalam jendela waktu. */
   max: number;

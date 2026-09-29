@@ -1,4 +1,5 @@
 import { isCloud, isCloudMisconfigured } from "@/lib/db";
+import { rateLimitMode } from "@/lib/rate-limit";
 
 /** GET: status mode server untuk diprobe client saat boot.
     `cloud` = server benar-benar memakai database. Bila client menganggap
@@ -10,6 +11,8 @@ export async function GET() {
     {
       cloud: isCloud,
       misconfigured,
+      // "memory" = pembatas laju hanya per-proses (set Upstash untuk produksi)
+      rateLimit: rateLimitMode(),
       error: misconfigured
         ? "SUPABASE_SERVICE_ROLE_KEY belum diisi di server."
         : isCloud
