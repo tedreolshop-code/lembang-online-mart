@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminLogout, hasAdminSession, verifyAdminSession } from "@/lib/auth";
+import { adminLogout, adminRefresh, cloudMode, hasAdminSession, verifyAdminSession } from "@/lib/auth";
 import Login from "@/components/admin/Login";
 import Dashboard from "@/components/admin/Dashboard";
 
@@ -24,6 +24,20 @@ export default function AdminPage() {
       alive = false;
     };
   }, []);
+
+  // Perpanjang sesi berkala selama login (access token Supabase ~1 jam) supaya
+  // admin tidak tiba-tiba terlempar. 40 menit < masa token.
+  useEffect(() => {
+    if (!cloudMode || !loggedIn) return;
+    const id = window.setInterval(async () => {
+      const ok = await adminRefresh();
+      if (!ok) {
+        await adminLogout();
+        setLoggedIn(false);
+      }
+    }, 40 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [loggedIn]);
 
   if (!checked) return null;
 

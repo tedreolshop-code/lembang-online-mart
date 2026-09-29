@@ -5,6 +5,8 @@
 
 export const ADMIN_COOKIE = "los_admin";
 export const ADMIN_EMAIL_COOKIE = "los_admin_email";
+/** Refresh token Supabase — dipakai /api/admin/refresh memperpanjang sesi. */
+export const ADMIN_REFRESH_COOKIE = "los_admin_rt";
 
 /** Bangun string Set-Cookie. `Secure` hanya di produksi agar dev via http jalan. */
 export function buildCookie(

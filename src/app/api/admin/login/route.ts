@@ -1,10 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 import { isCloud, cloudRequired, isAdminEmail, SUPABASE_URL } from "@/lib/db";
-import { ADMIN_COOKIE, ADMIN_EMAIL_COOKIE, buildCookie } from "@/lib/admin-cookie";
+import {
+  ADMIN_COOKIE,
+  ADMIN_EMAIL_COOKIE,
+  ADMIN_REFRESH_COOKIE,
+  buildCookie,
+} from "@/lib/admin-cookie";
 import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /** Batas percobaan login admin per IP — menahan brute-force kredensial. */
 const ADMIN_LOGIN_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 };
+/** Masa berlaku cookie refresh (detik) — 30 hari. */
+const REFRESH_MAX_AGE = 60 * 60 * 24 * 30;
 
 /** POST: login admin. Verifikasi email+password lewat Supabase Auth di SERVER,
     lalu simpan access token di cookie HttpOnly (bukan sessionStorage) supaya
@@ -52,6 +59,14 @@ export async function POST(req: Request) {
     "Set-Cookie",
     buildCookie(ADMIN_EMAIL_COOKIE, data.user?.email ?? email, maxAge, false),
   );
+  // refresh token → dipakai /api/admin/refresh agar admin tidak perlu login
+  // ulang tiap ~1 jam.
+  if (data.session.refresh_token) {
+    headers.append(
+      "Set-Cookie",
+      buildCookie(ADMIN_REFRESH_COOKIE, data.session.refresh_token, REFRESH_MAX_AGE, true),
+    );
+  }
   return new Response(
     JSON.stringify({ ok: true, email: data.user?.email ?? email }),
     { status: 200, headers },

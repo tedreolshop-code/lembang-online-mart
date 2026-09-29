@@ -84,6 +84,18 @@ export async function verifyAdminSession(): Promise<{
   }
 }
 
+/** Perpanjang sesi admin memakai refresh cookie (dipanggil berkala oleh
+    dashboard). false = sesi benar-benar berakhir. */
+export async function adminRefresh(): Promise<boolean> {
+  if (!cloudMode) return true;
+  try {
+    const res = await fetch("/api/admin/refresh", { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function adminLogout(): Promise<void> {
   try {
     sessionStorage.removeItem(ADMIN_EMAIL_KEY);
