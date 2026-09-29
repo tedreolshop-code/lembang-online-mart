@@ -1,12 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 import { isCloud, cloudRequired, isAdminEmail, SUPABASE_URL } from "@/lib/db";
 import { ADMIN_COOKIE, ADMIN_EMAIL_COOKIE, buildCookie } from "@/lib/admin-cookie";
+import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
+
+/** Batas percobaan login admin per IP — menahan brute-force kredensial. */
+const ADMIN_LOGIN_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 };
 
 /** POST: login admin. Verifikasi email+password lewat Supabase Auth di SERVER,
     lalu simpan access token di cookie HttpOnly (bukan sessionStorage) supaya
     tidak bisa dicuri lewat XSS. API route lain membaca cookie ini. */
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
+
+  const tunggu = await hitRateLimit(`admin-login:${clientIp(req)}`, ADMIN_LOGIN_LIMIT);
+  if (tunggu !== null) return tooManyRequests(tunggu);
 
   const body = await req.json().catch(() => null);
   const email = String(body?.email ?? "").trim();

@@ -9,7 +9,14 @@ import { DEFAULT_SETTINGS } from "@/lib/config";
 import { newOrderId } from "@/lib/format";
 import { sendOrderNotification } from "@/lib/notify";
 import { withSecrets } from "@/lib/notify-secrets";
+import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { after } from "next/server";
+
+/** Pembatas laju pembuatan pesanan (publik). Endpoint ini mengurangi stok, jadi
+    tanpa batas laju bisa dispam sampai stok habis / order palsu menumpuk.
+    Dilooskan cukup longgar: pembeli wajar hanya 1 pesanan per checkout. */
+const ORDER_LIMIT = { max: 20, windowMs: 10 * 60 * 1000 };
+
 
 /** Token idempotensi dari browser (v18). Opsional; format dibatasi agar tidak
     menyimpan string sembarang. Tidak valid/kosong → dianggap tanpa token. */
@@ -35,6 +42,9 @@ export async function GET(req: Request) {
     divalidasi server; stok berkurang atomik lewat fungsi create_order */
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
+
+  const tunggu = await hitRateLimit(`order:${clientIp(req)}`, ORDER_LIMIT);
+  if (tunggu !== null) return tooManyRequests(tunggu);
 
   const body = await req.json();
   const rawItems = Array.isArray(body?.items) ? body.items : [];
