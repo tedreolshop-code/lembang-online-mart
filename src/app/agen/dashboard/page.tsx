@@ -13,6 +13,12 @@ import {
   UserIcon,
 } from "@/components/Icons";
 
+/** Kredensial agen dikirim lewat HEADER (bukan query string) supaya tidak
+    tercatat di access log / riwayat browser / Referer. */
+function agentHeaders(wa: string, code: string, pin: string): Record<string, string> {
+  return { "x-agent-wa": wa, "x-agent-code": code, "x-agent-pin": pin };
+}
+
 /** Dashboard agen: ringkasan komisi + riwayat pesanan + link referral + edit profil.
     Login: No. WA + kode agen + PIN (diberikan/ diatur admin). */
 
@@ -71,9 +77,9 @@ export default function AgenDashboardPage() {
     (async () => {
       setFetchErr("");
       try {
-        const res = await fetch(
-          `/api/agents/me?wa=${encodeURIComponent(auth.wa)}&code=${encodeURIComponent(auth.code)}&pin=${encodeURIComponent(auth.pin)}`,
-        );
+        const res = await fetch("/api/agents/me", {
+          headers: agentHeaders(auth.wa, auth.code, auth.pin),
+        });
         const body = await res.json();
         if (!cancelled) {
           if (!res.ok) {
@@ -98,9 +104,9 @@ export default function AgenDashboardPage() {
     setLoading(true);
     setLoginErr("");
     try {
-      const res = await fetch(
-        `/api/agents/me?wa=${encodeURIComponent(loginForm.wa)}&code=${encodeURIComponent(loginForm.code.toUpperCase())}&pin=${encodeURIComponent(loginForm.pin)}`,
-      );
+      const res = await fetch("/api/agents/me", {
+        headers: agentHeaders(loginForm.wa, loginForm.code.toUpperCase(), loginForm.pin),
+      });
       const body = await res.json();
       if (!res.ok) {
         setLoginErr(body.error ?? "Gagal masuk.");
@@ -161,9 +167,9 @@ export default function AgenDashboardPage() {
         setEditMsg("Profil berhasil diperbarui.");
         setEditing(false);
         // refresh data
-        const dashRes = await fetch(
-          `/api/agents/me?wa=${encodeURIComponent(auth.wa)}&code=${encodeURIComponent(auth.code)}&pin=${encodeURIComponent(auth.pin)}`,
-        );
+        const dashRes = await fetch("/api/agents/me", {
+          headers: agentHeaders(auth.wa, auth.code, auth.pin),
+        });
         const dashBody = await dashRes.json();
         if (dashRes.ok) setData(dashBody);
       }

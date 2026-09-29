@@ -15,7 +15,9 @@ const AGEN_LIMIT = { max: 10, windowMs: 5 * 60 * 1000 };
 type AgentRow = Parameters<typeof rowToAgent>[0];
 
 /** Verifikasi kredensial agen (WA + kode + PIN). Mengembalikan baris agen bila
-    valid, atau Response error siap dikirim. */
+    valid, atau Response error siap dikirim.
+    Kredensial datang lewat HEADER (bukan query string) agar tidak ikut tercatat
+    di access log server, riwayat browser, atau Referer. */
 async function verifyAgent(
   wa: string,
   code: string,
@@ -63,10 +65,9 @@ export async function GET(req: Request) {
   const tunggu = await hitRateLimit(`agen-me:${clientIp(req)}`, AGEN_LIMIT);
   if (tunggu !== null) return tooManyRequests(tunggu);
 
-  const url = new URL(req.url);
-  const wa = formatWaDigits(url.searchParams.get("wa") ?? "");
-  const code = normalizeAgentCode(url.searchParams.get("code") ?? "");
-  const pin = String(url.searchParams.get("pin") ?? "");
+  const wa = formatWaDigits(req.headers.get("x-agent-wa") ?? "");
+  const code = normalizeAgentCode(req.headers.get("x-agent-code") ?? "");
+  const pin = String(req.headers.get("x-agent-pin") ?? "");
 
   const auth = await verifyAgent(wa, code, pin);
   if (auth instanceof Response) return auth;
