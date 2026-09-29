@@ -129,6 +129,14 @@ function rememberMyOrder(id: string) {
   localStorage.setItem(MY_ORDERS_KEY, JSON.stringify(ids));
 }
 
+/** Gabungkan BANYAK id sekaligus (mis. hasil login lintas perangkat),
+    simpan 50 terbaru tanpa duplikat. Memanggil rememberMyOrder satu per satu
+    akan menyisakan id TERLAMA yang bertahan karena cap 50. */
+function rememberMyOrders(ids: string[]) {
+  const merged = Array.from(new Set([...ids, ...myOrderIds()])).slice(0, 50);
+  localStorage.setItem(MY_ORDERS_KEY, JSON.stringify(merged));
+}
+
 /** Error API yang menyertakan kode status HTTP.
 
     Sebelumnya `api()` hanya melempar Error biasa, jadi pemanggil tidak bisa
@@ -955,7 +963,7 @@ export async function customerLogin(
     // Riwayat lintas perangkat: gabungkan id pesanan milik nomor ini ke daftar
     // perangkat, lalu tarik datanya (server hanya memberikannya ke pemilik).
     if (Array.isArray(res.orderIds) && res.orderIds.length > 0) {
-      for (const id of res.orderIds) rememberMyOrder(id);
+      rememberMyOrders(res.orderIds);
       await refreshOrders().catch(() => {});
     }
     return { customer: res.customer, isNew: false };
