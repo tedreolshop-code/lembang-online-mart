@@ -42,8 +42,19 @@ export async function POST(req: Request) {
     );
   }
 
+  // Riwayat lintas perangkat: sertakan id pesanan milik nomor ini (hanya
+  // kepada pemilik yang sudah lolos password) supaya klien bisa menariknya
+  // lewat /api/orders/lookup — sebelumnya riwayat hanya ada di perangkat asal.
+  const { data: orderRows } = await db()
+    .from("orders")
+    .select("id")
+    .eq("customer_phone", phone)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
   return Response.json({
     ok: true,
     customer: { phone: row.phone, name: row.name, address: row.address ?? "" },
+    orderIds: (orderRows ?? []).map((r) => r.id as string),
   });
 }

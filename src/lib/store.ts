@@ -919,12 +919,19 @@ export async function customerLogin(
     const res = await api<{
       ok: boolean;
       customer: Customer;
+      orderIds?: string[];
     }>("/api/customers/login", {
       method: "POST",
       body: JSON.stringify({ phone: cleanPhone, password }),
     });
     writeCustomerAuth(res.customer);
     saveCustomer(res.customer);
+    // Riwayat lintas perangkat: gabungkan id pesanan milik nomor ini ke daftar
+    // perangkat, lalu tarik datanya (server hanya memberikannya ke pemilik).
+    if (Array.isArray(res.orderIds) && res.orderIds.length > 0) {
+      for (const id of res.orderIds) rememberMyOrder(id);
+      await refreshOrders().catch(() => {});
+    }
     return { customer: res.customer, isNew: false };
   }
   // mode lokal: tidak ada penyimpanan password — anggap gagal
