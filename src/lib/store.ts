@@ -106,6 +106,9 @@ let booted = false;
 let cloudProducts: Product[] = SEED_PRODUCTS;
 let cloudOrders: Order[] = [];
 let cloudSettings: StoreSettings = DEFAULT_SETTINGS;
+/** true setelah pengaturan berhasil diambil dari cloud — dipakai
+    useSettingsReady agar tidak bergantung pada perbandingan nilai. */
+let settingsLoaded = false;
 /** Pesan salah-konfigurasi server yang HARUS terlihat — bukan disembunyikan.
     Diisi oleh probeHealth() saat boot (mode cloud) untuk banner. */
 let configError: string | null = null;
@@ -188,6 +191,7 @@ export function rememberThemeColors(theme: Pick<StoreSettings, "colorPrimary" | 
 
 const refreshSettings = async () => {
   cloudSettings = await api<StoreSettings>("/api/settings", { cache: "no-store" });
+  settingsLoaded = true;
   rememberThemeColors(cloudSettings);
   emit();
 };
@@ -1116,7 +1120,7 @@ export async function checkCoupon(
 export function useSettingsReady(): boolean {
   return useSyncExternalStore(
     subscribe,
-    () => !cloudMode || cloudSettings !== DEFAULT_SETTINGS,
+    () => !cloudMode || settingsLoaded,
     () => false,
   );
 }

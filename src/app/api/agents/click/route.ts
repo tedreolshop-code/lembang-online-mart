@@ -1,9 +1,13 @@
 import { db, isCloud, cloudRequired } from "@/lib/db";
+import { clientIp, hitRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   normalizeAgentCode,
   rowToAgentPrice,
   rowToCommissionSettings,
 } from "@/lib/agent";
+
+/** Batas klik per IP — menahan penggelembungan total_klik (best-effort). */
+const CLICK_LIMIT = { max: 60, windowMs: 60 * 1000 };
 
 /** POST (publik): pembeli membuka link referral agen → catat klik +
     kembalikan info singkat untuk banner "Ditujuk oleh …" beserta harga
@@ -12,6 +16,10 @@ import {
     Data pribadi agen (rekening dsb.) TIDAK pernah dikirim ke sini. */
 export async function POST(req: Request) {
   if (!isCloud) return cloudRequired();
+
+  const tunggu = await hitRateLimit(`agent-click:${clientIp(req)}`, CLICK_LIMIT);
+  if (tunggu !== null) return tooManyRequests(tunggu);
+
   const body = await req.json().catch(() => null);
   const code = normalizeAgentCode(
     body?.code ?? new URL(req.url).searchParams.get("code"),

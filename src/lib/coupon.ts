@@ -28,6 +28,14 @@ export function couponDiscount(
       ? Math.round((subtotal * c.value) / 100 / 100) * 100
       : c.value;
   d = Math.min(Math.max(0, d), subtotal);
+  // Jangan buang kuota voucher untuk potongan Rp0 (mis. persen kecil di
+  // belanja kecil yang membulat ke 0).
+  if (d <= 0) {
+    return {
+      ok: false,
+      error: "Voucher tidak memberi potongan untuk belanja ini.",
+    };
+  }
   return { ok: true, discount: d };
 }
 

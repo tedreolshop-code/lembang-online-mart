@@ -28,6 +28,11 @@ test("voucher nominal tidak melebihi subtotal", () => {
   );
 });
 
+test("persen yang membulat ke Rp0 ditolak (kuota tidak terbuang)", () => {
+  // 1% dari 4.000 = 40 → pembulatan ke Rp100 = 0
+  assert.equal(couponDiscount({ ...base, value: 1 }, 4000).ok, false);
+});
+
 test("voucher nonaktif / kedaluwarsa / kuota habis / min belanja ditolak", () => {
   assert.equal(couponDiscount({ ...base, active: false }, 50000).ok, false);
   assert.equal(couponDiscount({ ...base, expiresAt: "2000-01-01" }, 50000).ok, false);
