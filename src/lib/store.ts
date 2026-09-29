@@ -596,14 +596,18 @@ export async function acceptOrder(o: Order): Promise<void> {
     KEYS.orders,
     orders.map((x) => (x.id === o.id ? { ...x, stockApplied: true } : x)),
   );
-  const products = readJSON<Product[]>(KEYS.products, SEED_PRODUCTS);
-  writeJSON(
-    KEYS.products,
-    products.map((p) => {
-      const item = o.items.find((i) => i.productId === p.id);
-      return item ? { ...p, stock: Math.max(0, p.stock - item.qty) } : p;
-    }),
-  );
+  // kurangi stok HANYA bila belum pernah dikurangi — cermin API
+  // (body.accept && !order.stock_applied); mencegah pengurangan dobel.
+  if (!o.stockApplied) {
+    const products = readJSON<Product[]>(KEYS.products, SEED_PRODUCTS);
+    writeJSON(
+      KEYS.products,
+      products.map((p) => {
+        const item = o.items.find((i) => i.productId === p.id);
+        return item ? { ...p, stock: Math.max(0, p.stock - item.qty) } : p;
+      }),
+    );
+  }
   updateOrderStatus(o.id, "diproses");
 }
 
@@ -1465,7 +1469,8 @@ const REF_PRICES_KEY = "los_agent_ref_prices_v1";
     snapshot, jadi daftar hasil parse tidak boleh dibuat ulang tiap panggilan. */
 let refPricesCache: { key: string; list: AgentPriceLine[] } | null = null;
 
-/** Simpan kode referral + masa berlaku (link_days). days <= 1 → tanpa batas.
+/** Simpan kode referral + masa berlaku (link_days). days < 1 → tanpa batas
+    (0 = abadi); days >= 1 = berlaku sekian hari.
     `prices` (v9) = harga khusus agen; `[]` berarti agen tidak punya harga
     khusus, `undefined` = jangan ubah data harga yang sudah tersimpan. */
 export function storeAgentRef(
@@ -1476,7 +1481,7 @@ export function storeAgentRef(
   if (typeof window === "undefined") return;
   const c = normalizeAgentCode(code);
   if (!c) return;
-  const until = days > 1 ? Date.now() + days * 86400000 : 0; // 0 = tak kedaluwarsa
+  const until = days >= 1 ? Date.now() + days * 86400000 : 0; // 0 = tak kedaluwarsa
   localStorage.setItem(REF_KEY, JSON.stringify({ code: c, until }));
   if (prices !== undefined) {
     localStorage.setItem(

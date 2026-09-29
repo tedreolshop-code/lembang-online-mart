@@ -9,7 +9,9 @@ export function couponDiscount(
   subtotal: number,
 ): { ok: boolean; discount?: number; error?: string } {
   if (!c.active) return { ok: false, error: "Voucher sedang tidak aktif." };
-  if (c.expiresAt && Date.parse(c.expiresAt + "T23:59:59") < Date.now()) {
+  // akhir hari UTC agar tidak bergantung timezone server — cermin cek
+  // `expires_at < current_date` di create_order.
+  if (c.expiresAt && Date.parse(c.expiresAt + "T23:59:59.999Z") < Date.now()) {
     return { ok: false, error: "Voucher sudah kedaluwarsa." };
   }
   if (c.maxUses != null && c.usedCount >= c.maxUses) {
