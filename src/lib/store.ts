@@ -201,6 +201,28 @@ const refreshOrders = async () => {
   emit();
 };
 
+/** Muat batch pesanan yang lebih lama (khusus admin) — pagination daftar.
+    `more` = kemungkinan masih ada batch berikutnya (hasil penuh). */
+export async function loadOlderOrders(
+  limit = 50,
+): Promise<{ added: number; more: boolean }> {
+  if (!cloudMode) return { added: 0, more: false };
+  const oldest = cloudOrders.length
+    ? Math.min(...cloudOrders.map((o) => o.createdAt))
+    : 0;
+  const before = oldest
+    ? `&before=${encodeURIComponent(new Date(oldest).toISOString())}`
+    : "";
+  const rows = await api<Order[]>(`/api/orders?limit=${limit}${before}`);
+  const seen = new Set(cloudOrders.map((o) => o.id));
+  const fresh = rows.filter((o) => !seen.has(o.id));
+  if (fresh.length) {
+    cloudOrders = [...cloudOrders, ...fresh];
+    emit();
+  }
+  return { added: fresh.length, more: rows.length >= limit };
+}
+
 /** Cek sekali apakah server benar-benar mode cloud. Bila client mengira
     cloud tapi server tidak (env setengah jalan), tampilkan banner alih-alih
     menyajikan data seed tanpa penjelasan. */

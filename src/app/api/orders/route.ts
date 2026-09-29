@@ -25,15 +25,24 @@ function sanitizeClientToken(v: unknown): string | null {
   return /^[A-Za-z0-9_-]{8,64}$/.test(s) ? s : null;
 }
 
-/** GET: semua pesanan — khusus admin (mode cloud) */
+/** GET: pesanan (khusus admin). Mendukung pagination:
+    `?limit=50&before=<ISO created_at>` untuk mengambil batch yang lebih lama. */
 export async function GET(req: Request) {
   if (!isCloud) return cloudRequired();
   if (!(await requireAdmin(req))) return unauthorized();
-  const { data, error } = await db()
+  const url = new URL(req.url);
+  const limit = Math.min(
+    200,
+    Math.max(1, Number(url.searchParams.get("limit")) || 200),
+  );
+  const before = url.searchParams.get("before");
+  let q = db()
     .from("orders")
     .select("*, order_items(*)")
     .order("created_at", { ascending: false })
-    .limit(200);
+    .limit(limit);
+  if (before) q = q.lt("created_at", before);
+  const { data, error } = await q;
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json((data ?? []).map(rowToOrder));
 }

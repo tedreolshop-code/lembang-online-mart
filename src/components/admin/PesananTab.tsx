@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useOrders, useProducts, updateOrderStatus, useSettings, acceptOrder, cancelOrder, deleteOrder } from "@/lib/store";
+import { useOrders, useProducts, updateOrderStatus, useSettings, acceptOrder, cancelOrder, deleteOrder, loadOlderOrders } from "@/lib/store";
 import { printOrderStruk } from "@/lib/printStruk";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import type { Order, OrderStatus } from "@/lib/types";
@@ -14,6 +14,10 @@ function PesananTab() {
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(
     null,
   );
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [noMore, setNoMore] = useState(false);
+  // daftar dimuat 200 terbaru; tombol hanya muncul bila kemungkinan terpotong
+  const canLoadMore = orders.length >= 200 && !noMore;
 
   if (orders.length === 0) {
     return (
@@ -234,6 +238,30 @@ function PesananTab() {
           </div>
         </div>
       ))}
+
+      {canLoadMore && (
+        <button
+          type="button"
+          disabled={loadingMore}
+          onClick={async () => {
+            setLoadingMore(true);
+            try {
+              const { more } = await loadOlderOrders(50);
+              if (!more) setNoMore(true);
+            } catch (err) {
+              showToast(
+                false,
+                err instanceof Error ? err.message : "Gagal memuat pesanan lama.",
+              );
+            } finally {
+              setLoadingMore(false);
+            }
+          }}
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+        >
+          {loadingMore ? "Memuat…" : "Muat pesanan lama"}
+        </button>
+      )}
 
       {toast && (
         <div
