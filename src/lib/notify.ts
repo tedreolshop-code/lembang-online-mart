@@ -130,23 +130,3 @@ function buildMessage(s: StoreSettings, o: Order): string {
 export const TEST_MESSAGE =
   "✅ Tes notifikasi berhasil terhubung. Pesanan baru dari website akan diberitahukan ke chat ini.";
 
-/** Notifikasi pendaftaran agen baru — dikirim ke Telegram + Discord.
-    Best-effort: gagal kirim TIDAK menggagalkan pendaftaran. */
-export async function sendAgentRegisterNotification(
-  nama: string,
-  wa: string,
-  code: string,
-): Promise<void> {
-  const { sendAdminAlert } = await import("./notify-secrets");
-  const text = [
-    `🤝 *PENDAFTARAN AGEN BARU*`,
-    ``,
-    `Nama: ${nama}`,
-    `WA: ${wa}`,
-    `Kode: ${code}`,
-    `Status: Menunggu approval admin`,
-    ``,
-    `Buka halaman admin → tab Agen untuk menyetujui.`,
-  ].join("\n");
-  await sendAdminAlert(text);
-}

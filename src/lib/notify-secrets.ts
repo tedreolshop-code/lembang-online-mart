@@ -70,35 +70,3 @@ export async function withSecrets(
   };
 }
 
-/** Kirim notifikasi ke semua provider aktif (Telegram + Discord sekaligus).
-    Dipakai untuk pendaftaran agen baru — best-effort, tidak melempar error. */
-export async function sendAdminAlert(
-  text: string,
-): Promise<void> {
-  const sec = await readSecrets();
-  const tasks: Promise<void>[] = [];
-
-  if (sec.provider === "telegram" && sec.token && sec.target) {
-    tasks.push(
-      fetch(`https://api.telegram.org/bot${sec.token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: sec.target, text }),
-        signal: AbortSignal.timeout(10000),
-      }).then(() => undefined).catch(() => undefined),
-    );
-  }
-
-  if (sec.discordWebhook) {
-    tasks.push(
-      fetch(sec.discordWebhook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
-        signal: AbortSignal.timeout(10000),
-      }).then(() => undefined).catch(() => undefined),
-    );
-  }
-
-  await Promise.allSettled(tasks);
-}
