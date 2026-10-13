@@ -19,6 +19,10 @@ export interface Product {
   costPrice?: number;
   /** kemasan, mis. "1 dus @ 40 pcs" */
   unit: string;
+  /** isi 1 pack dalam pcs (v19) — label kemasan; harga tetap per pcs */
+  packSize?: number;
+  /** isi 1 dus dalam pcs (v19) — label kemasan; harga tetap per pcs */
+  dusSize?: number;
   emoji: string;
   /** URL atau path foto produk (opsional; tanpa ini dipakai emoji) */
   image?: string;

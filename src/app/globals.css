@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Log dev-server di root proyek BUKAN kode: isinya bisa memuat dump pesan
+   error CSS, dan pemindai Tailwind membaca teks di dalamnya sebagai nama
+   class → class rusak ikut tergenerate dan SELURUH halaman gagal
+   (PostCSS: "Parsing CSS source code failed"). Kecualikan file log itu. */
+@source not "../../opencode-dev.log";
+@source not "../../opencode-dev.err";
+
 @theme {
   /* Tema default MERAH — disamakan dengan DEFAULT_SETTINGS.colorPrimary/
      colorDark + turunan shade()/mixWhite() agar paint sebelum ThemeStyle

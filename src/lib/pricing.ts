@@ -43,6 +43,49 @@ export function lineSubtotal(
   return unitPrice(product, qty) * qty;
 }
 
+/* ── label kemasan (v19) ────────────────────────────────────────── */
+/* Produk boleh menyimpan isi 1 pack / 1 dus (pcs). Angka itu HANYA label dan
+   bantuan jumlah belanja: harga tetap per pcs seperti di atas, sama dengan
+   create_order di database — jadi tidak ada harga kedua yang bisa meleset
+   dari tagihan. */
+
+/** Isi kemasan dari input admin/DB: bulat > 1; selain itu undefined. */
+export function cleanPackSize(raw: unknown): number | undefined {
+  const n = Math.round(Number(raw ?? 0));
+  return Number.isFinite(n) && n > 1 ? n : undefined;
+}
+
+/** Satu baris pilihan kemasan di halaman produk. */
+export interface PackOption {
+  kind: "satuan" | "pack" | "dus";
+  /** jumlah pcs yang dibeli bila pembeli memilih kemasan ini */
+  size: number;
+  /** harga per pcs pada jumlah itu (grosir bila ambangnya tercapai) */
+  price: number;
+  /** yang ditagih = price × size */
+  total: number;
+}
+
+/** Pilihan kemasan yang bisa dibeli: Satuan selalu ada, Pack & Dus menyusul
+    bila isinya diisi admin. Total memakai aturan harga yang sama dengan
+    keranjang & create_order, jadi angka di layar = angka di struk. */
+export function packOptions(
+  product: Pick<Product, "price" | "tiers" | "packSize" | "dusSize">,
+): PackOption[] {
+  const out: PackOption[] = [
+    { kind: "satuan", size: 1, price: product.price, total: product.price },
+  ];
+  const add = (kind: "pack" | "dus", raw: unknown) => {
+    const size = cleanPackSize(raw);
+    if (!size) return;
+    const price = unitPrice(product, size);
+    out.push({ kind, size, price, total: price * size });
+  };
+  add("pack", product.packSize);
+  add("dus", product.dusSize);
+  return out;
+}
+
 /* ── harga khusus agen (v9) ─────────────────────────────────────── */
 /* Pembeli yang datang dari tautan referral agen membayar harga khusus
    agen bila ada barisnya; kalau tidak ada → harga normal/grosir.

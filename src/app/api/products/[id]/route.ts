@@ -1,5 +1,6 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
-import { replaceProductTiers } from "@/lib/product-tiers";
+import { cleanPackSize } from "@/lib/pricing";
+import { productWriteMessage, replaceProductTiers } from "@/lib/product-tiers";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -15,6 +16,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (body.price !== undefined) row.price = body.price;
   if (body.oldPrice !== undefined) row.old_price = body.oldPrice ?? null;
   if (body.costPrice !== undefined) row.cost_price = Math.max(0, Number(body.costPrice) || 0);
+  // label kemasan (v19): null/<=1 = kosongkan
+  if (body.packSize !== undefined) row.pack_size = cleanPackSize(body.packSize) ?? null;
+  if (body.dusSize !== undefined) row.dus_size = cleanPackSize(body.dusSize) ?? null;
   if (body.unit !== undefined) row.unit = body.unit;
   if (body.emoji !== undefined) row.emoji = body.emoji;
   if (body.image !== undefined) row.image_url = body.image ?? null;
@@ -45,7 +49,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
     .update(row)
     .eq("id", id)
     .select();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) {
+    return Response.json(
+      { error: productWriteMessage(error.message) },
+      { status: 500 },
+    );
+  }
   if (!data || data.length === 0) {
     return Response.json({ error: "Produk tidak ditemukan." }, { status: 404 });
   }

@@ -126,6 +126,15 @@ produk dan tautan lama tetap terhubung.
   produk, keranjang, dan checkout. Harga yang dipakai = tingkat dengan
   jumlah minimum terbesar yang tercapai; dihitung ulang oleh server dan
   fungsi database `create_order`, jadi tidak bisa dimanipulasi dari browser.
+- **Isi kemasan pack & dus (v19)** — Admin → Produk → edit → "📦 Isi
+  Kemasan": tulis berapa pcs dalam 1 pack dan 1 dus (mis. 10 & 40). Halaman
+  produk lalu menampilkan tiga harga — **Satuan / Pack / Dus** — beserta
+  tombol *Beli* yang langsung memasukkan jumlah pcs kemasan itu, jadi pembeli
+  tidak perlu mengetik 40 sendiri. Harga tetap dihitung PER PCS (harga jual +
+  tingkat grosir); angka kemasan hanya label & bantuan jumlah, sehingga
+  tagihan sama persis dengan isi keranjang. Kotak "Harga 1 Pack / 1 Dus" di
+  form admin menerima TOTAL harga kemasan lalu membaginya jadi harga per pcs
+  (mencegah harga total tertulis sebagai harga satuan).
 - **Program agen** (Admin → 🤝 Agen): pendaftaran agen ditutup untuk umum —
   admin mendaftarkan agen langsung (kode otomatis, mis. `AGX7K2M`, bisa
   diganti manual), atur komisi global — persen atau nominal tetap per
@@ -269,9 +278,9 @@ Cara mengaktifkan mode cloud:
    (membuat tabel, fungsi transaksi `create_order`, keamanan RLS, dan bucket
    foto `product-images`).
    - Database yang sudah dibuat dengan skema versi lama: jalankan migrasi
-     berurutan `sql/alter-v2.sql` → … → `sql/alter-v18.sql` (semua aman
+     berurutan `sql/alter-v2.sql` → … → `sql/alter-v19.sql` (semua aman
      diulang / idempotent). Mulai versi ini **`sql/schema.sql` sudah FINAL** —
-     sudah memuat seluruh perubahan v1–v18, jadi project baru cukup
+     sudah memuat seluruh perubahan v1–v19, jadi project baru cukup
      menjalankan file itu saja.
 3. Dashboard → **Authentication → Users → Add user** → buat akun admin
    (email + password) untuk login halaman admin.
@@ -280,6 +289,12 @@ Cara mengaktifkan mode cloud:
 5. Dashboard → **Storage → product-images** (sudah dibuat skema) untuk foto.
 6. `npm run build && npm run start` — lalu masuk `/admin`: jika database
    masih kosong, muncul tombol **"Muat Data Awal ke Database"**.
+
+> 📦 **Migrasi v19 (`sql/alter-v19.sql`)** — menambah kolom
+> `products.pack_size` & `products.dus_size` (aditif, boleh kosong; tidak ada
+> fungsi database yang diubah). Tanpa migrasi, website tetap jalan penuh —
+> hanya label Pack/Dus yang belum bisa disimpan dan form produk menampilkan
+> pesan untuk menjalankan migrasi ini.
 
 > 🔐 **Migrasi v5 (`sql/alter-v5.sql`)** — membuang kolom notifikasi lama di
 > tabel `settings` (`notify_provider`, `notify_token`, `notify_target`) yang

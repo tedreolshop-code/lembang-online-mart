@@ -10,6 +10,17 @@ import type { PriceTier } from "./types";
 export const TIERS_MIGRATION_MSG =
   "Tabel harga grosir belum ada — jalankan sql/alter-v6.sql di Supabase SQL Editor.";
 
+/** Pesan ramah saat kolom label kemasan v19 belum ada (DB belum dimigrasi). */
+export const PACK_LABEL_MIGRATION_MSG =
+  "Kolom isi kemasan (pack/dus) belum ada — jalankan sql/alter-v19.sql di Supabase SQL Editor.";
+
+/** Ubah pesan error Supabase saat simpan produk menjadi pesan siap tampil.
+    Kolom v19 yang belum dimigrasi paling sering muncul di sini; pesan asli
+    "column products.pack_size does not exist" tidak berguna bagi pemilik. */
+export function productWriteMessage(msg: string): string {
+  return /pack_size|dus_size/i.test(msg) ? PACK_LABEL_MIGRATION_MSG : msg;
+}
+
 const isMissingTable = (msg: string) =>
   /product_tiers|Could not find|does not exist/i.test(msg);
 

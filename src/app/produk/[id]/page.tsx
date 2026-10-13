@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useCart } from "@/lib/cart";
 import { useFavorites, useProduct, useProducts, toggleFavorite } from "@/lib/store";
 import { formatRupiah, discountPercent } from "@/lib/format";
-import { unitPrice } from "@/lib/pricing";
+import { packOptions, unitPrice } from "@/lib/pricing";
 import { useCategories } from "@/lib/category-store";
 import { useSettings } from "@/lib/store";
 import ProductCard from "@/components/ProductCard";
@@ -56,6 +56,11 @@ export default function ProdukDetailPage() {
   const tiers = (product.tiers ?? []).filter((t) => t.price < product.price);
   const harga = unitPrice(product, qty);
   const lagi = tiers.find((t) => t.minQty > qty);
+  // tiga harga (v19): Satuan selalu ada, Pack & Dus menyusul bila isinya diisi
+  const kemasan = packOptions(product);
+  /** Nama kemasan untuk sebuah jumlah, mis. 10 → "Pack" bila isinya 10 pcs. */
+  const labelKemasan = (minQty: number) =>
+    minQty === product.packSize ? "Pack" : minQty === product.dusSize ? "Dus" : null;
   const terkait = products
     .filter((p) => p.category === product.category && p.id !== product.id)
     .slice(0, 4);
@@ -145,7 +150,9 @@ export default function ProdukDetailPage() {
                       : "bg-slate-100 text-slate-500"
                   }`}
                 >
-                  Beli {t.minQty}+ · {formatRupiah(t.price)}
+                  {labelKemasan(t.minQty) ?? "Beli"} {t.minQty}
+                  {labelKemasan(t.minQty) ? " pcs" : "+"} ·{" "}
+                  {formatRupiah(t.price)}/pcs
                 </span>
               ))}
               {lagi && !habis && (
@@ -153,6 +160,59 @@ export default function ProdukDetailPage() {
                   +{lagi.minQty - qty} lagi → {formatRupiah(lagi.price)}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* harga per kemasan (v19): total dihitung dengan aturan yang sama
+              dipakai keranjang & create_order, jadi angka di sini = struk */}
+          {kemasan.length > 1 && (
+            <div className="mt-3 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+              {kemasan.map((o) => {
+                const nama =
+                  o.kind === "satuan" ? "Satuan" : o.kind === "pack" ? "Pack" : "Dus";
+                const bisaBeli =
+                  o.kind !== "satuan" && !habis && product.stock >= o.size;
+                return (
+                  <div
+                    key={o.kind}
+                    className={`flex items-center justify-between gap-2 px-3 py-2 ${
+                      o.size === qty && o.kind !== "satuan" ? "bg-brand-soft" : ""
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-slate-700">
+                        {nama}
+                      </span>
+                      <span className="ml-1.5 text-[11px] text-slate-400">
+                        {o.size} pcs
+                        {o.price < product.price
+                          ? ` · ${formatRupiah(o.price)}/pcs`
+                          : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-extrabold text-brand">
+                        {formatRupiah(o.total)}
+                      </span>
+                      {o.kind !== "satuan" && (
+                        <button
+                          type="button"
+                          disabled={!bisaBeli}
+                          title={
+                            bisaBeli
+                              ? `${nama} isi ${o.size} pcs`
+                              : `Stok kurang dari ${o.size} pcs`
+                          }
+                          onClick={() => addItem(product.id, o.size)}
+                          className="rounded-lg border-2 border-brand/40 px-2.5 py-1 text-xs font-bold text-brand transition hover:bg-brand-soft disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                        >
+                          Beli
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 

@@ -24,8 +24,9 @@
 --   v16 cabut EXECUTE create_order/delete_product dari publik (hanya service_role)
 --   v17 index untuk pertumbuhan data
 --   v18 idempotensi pesanan (orders.client_token)
+--   v19 label kemasan produk (products.pack_size / products.dus_size)
 --
--- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v18 yang
+-- Database LAMA: cukup jalankan migrasi alter-v2 … alter-v19 yang
 -- belum pernah dijalankan (semua idempotent / aman diulang).
 -- Aman diulang: seluruh file ini juga idempotent.
 -- ============================================================
@@ -48,6 +49,8 @@ create table if not exists products (
   price         int  not null check (price >= 0),
   old_price     int,
   cost_price    int  not null default 0,        -- harga modal/HPP (v6); 0 = belum diisi
+  pack_size     int check (pack_size is null or pack_size > 1),  -- isi 1 pack (pcs), label kemasan (v19)
+  dus_size      int check (dus_size is null or dus_size > 1),    -- isi 1 dus (pcs), label kemasan (v19)
   unit          text not null default '1 pcs',
   emoji         text not null default '🛒',
   image_url     text,                           -- URL foto (opsional)

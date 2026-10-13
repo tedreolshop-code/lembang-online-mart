@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useProducts, upsertProduct, deleteProduct, seedDatabase } from "@/lib/store";
 import { cloudMode, authHeaders } from "@/lib/auth";
 import { formatRupiah } from "@/lib/format";
-import { normalizeTiers } from "@/lib/pricing";
+import { cleanPackSize, normalizeTiers } from "@/lib/pricing";
 import { useCategoryCatalog, useCategories } from "@/lib/category-store";
 import { slugify } from "@/lib/slug";
 import { Tag, Check } from "@/components/admin/ui";
@@ -212,6 +212,73 @@ function ProdukTab({ initialCategory }: { initialCategory?: string }) {
   );
 }
 
+/** Kalkulator harga kemasan: pemilik mengetik TOTAL 1 pack / 1 dus, aplikasi
+    yang membagi jadi harga per pcs (angka yang dipakai mesin harga). */
+function PackHelper({
+  label,
+  size,
+  basePrice,
+  current,
+  onApply,
+}: {
+  label: string;
+  size?: number;
+  basePrice: number;
+  current?: number;
+  onApply: (perPcs: number) => void;
+}) {
+  const [total, setTotal] = useState("");
+  const n = Number(total);
+  const perPcs = size && size > 1 && n > 0 ? Math.round(n / size) : null;
+  const terlaluMahal = perPcs !== null && perPcs >= basePrice;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+      <p className="text-[11px] font-bold text-slate-600">
+        {label}
+        {size && size > 1 ? ` · ${size} pcs` : ""}
+        {current ? ` · tersimpan ${formatRupiah(current)}/pcs` : ""}
+      </p>
+      {!size || size <= 1 ? (
+        <p className="mt-1 text-[11px] text-slate-400">
+          Isi kemasan belum diisi di atas.
+        </p>
+      ) : (
+        <>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              value={total}
+              onChange={(e) => setTotal(e.target.value)}
+              placeholder="Total harga"
+              className="input w-28"
+            />
+            <span className="text-[11px] text-slate-500">
+              {perPcs === null
+                ? "= harga per pcs"
+                : `= ${formatRupiah(perPcs)} / pcs`}
+            </span>
+            <button
+              type="button"
+              disabled={perPcs === null}
+              onClick={() => perPcs !== null && onApply(perPcs)}
+              className="rounded-lg border-2 border-brand/40 px-2.5 py-1 text-xs font-bold text-brand hover:bg-brand-soft disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+            >
+              Pakai harga ini
+            </button>
+          </div>
+          {terlaluMahal && (
+            <p className="mt-1 text-[11px] font-semibold text-brand">
+              ⚠️ Tidak lebih murah dari harga satuan — tidak akan disimpan.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ProductForm({
   initial,
   isNew,
@@ -236,8 +303,25 @@ function ProductForm({
       alert("Harga Beli / HPP wajib diisi. Isi modal beli per unit — dipakai hitung laba di Laporan.");
       return;
     }
-    // tier grosir dibersihkan terhadap harga final (minQty > 1, harga < normal)
-    onSave({ ...p, tiers: normalizeTiers(p.tiers ?? [], p.price) });
+    // isi kemasan & tier grosir dibersihkan terhadap harga final
+    onSave({
+      ...p,
+      packSize: cleanPackSize(p.packSize),
+      dusSize: cleanPackSize(p.dusSize),
+      tiers: normalizeTiers(p.tiers ?? [], p.price),
+    });
+  };
+
+  /** Terapkan harga per pcs hasil bagi total pack/dus ke daftar tingkat grosir
+      (mengganti tingkat dengan jumlah yang sama bila sudah ada). */
+  const applyPackPrice = (size: number | undefined, perPcs: number) => {
+    const n = size ?? 0;
+    if (n <= 1) return;
+    const tiers = [...(p.tiers ?? [])];
+    const i = tiers.findIndex((t) => t.minQty === n);
+    if (i >= 0) tiers[i] = { minQty: n, price: perPcs };
+    else tiers.push({ minQty: n, price: perPcs });
+    set({ tiers: tiers.sort((a, b) => a.minQty - b.minQty) });
   };
 
   return (
@@ -436,6 +520,50 @@ function ProductForm({
           <Check label="Baru 🆕" checked={!!p.isNew} onChange={(v) => set({ isNew: v })} />
         </div>
 
+        {/* label kemasan (v19) — harga tetap per pcs */}
+        <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2">
+          <span className="text-sm font-bold text-slate-700">
+            📦 Isi Kemasan (opsional)
+          </span>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Berapa pcs dalam 1 pack / 1 dus. Dipakai halaman produk untuk
+            menampilkan tiga harga (Satuan / Pack / Dus) beserta tombol beli
+            cepat. Harga tetap dihitung per pcs, jadi tagihan tidak berubah.
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="form-label">Isi 1 Pack (pcs)</span>
+              <input
+                type="number"
+                min={2}
+                value={p.packSize ?? ""}
+                onChange={(e) =>
+                  set({
+                    packSize: e.target.value ? Number(e.target.value) : undefined,
+                  })
+                }
+                placeholder="cth: 10"
+                className="input"
+              />
+            </label>
+            <label className="block">
+              <span className="form-label">Isi 1 Dus (pcs)</span>
+              <input
+                type="number"
+                min={2}
+                value={p.dusSize ?? ""}
+                onChange={(e) =>
+                  set({
+                    dusSize: e.target.value ? Number(e.target.value) : undefined,
+                  })
+                }
+                placeholder="cth: 40"
+                className="input"
+              />
+            </label>
+          </div>
+        </div>
+
         {/* harga grosir (v6) */}
         <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2">
           <div className="flex items-center justify-between">
@@ -458,8 +586,9 @@ function ProductForm({
             </button>
           </div>
           <p className="mt-1 text-[11px] text-slate-500">
-            Harga lebih murah saat pembeli mengambil sejumlah minimum. Kosong =
-            hanya harga normal.
+            Harga lebih murah saat pembeli mengambil sejumlah minimum. Isi
+            jumlah yang sama dengan isi pack/dus di atas agar harga itu tampil
+            berlabel Pack / Dus di halaman produk. Kosong = hanya harga normal.
           </p>
           {(p.tiers ?? []).length === 0 ? (
             <p className="mt-2 text-xs italic text-slate-400">
@@ -469,6 +598,9 @@ function ProductForm({
             <div className="mt-2 space-y-2">
               {(p.tiers ?? []).map((t, i) => (
                 <div key={i} className="flex items-center gap-2">
+                  {(t.minQty === p.packSize || t.minQty === p.dusSize) && (
+                    <Tag label={t.minQty === p.packSize ? "Pack" : "Dus"} />
+                  )}
                   <label className="flex flex-1 items-center gap-1 text-xs text-slate-500">
                     Beli ≥
                     <input
@@ -515,6 +647,27 @@ function ProductForm({
               ))}
             </div>
           )}
+
+          {/* Kalkulator anti-salah-bagi: pemilik mengetik TOTAL harga 1 pack /
+              1 dus, aplikasi yang membaginya jadi harga per pcs. Tanpa ini
+              harga total mudah terisi di kolom harga per pcs dan pembeli
+              tertagih berkali-kali lipat. */}
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <PackHelper
+              label="Harga 1 Pack"
+              size={p.packSize}
+              basePrice={p.price}
+              current={(p.tiers ?? []).find((t) => t.minQty === p.packSize)?.price}
+              onApply={(perPcs) => applyPackPrice(p.packSize, perPcs)}
+            />
+            <PackHelper
+              label="Harga 1 Dus"
+              size={p.dusSize}
+              basePrice={p.price}
+              current={(p.tiers ?? []).find((t) => t.minQty === p.dusSize)?.price}
+              onApply={(perPcs) => applyPackPrice(p.dusSize, perPcs)}
+            />
+          </div>
         </div>
       </div>
 

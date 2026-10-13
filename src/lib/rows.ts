@@ -12,6 +12,9 @@ export interface ProductRow {
   price: number;
   old_price: number | null;
   cost_price: number | null;
+  // kolom v19 — mungkin belum ada bila sql/alter-v19.sql belum dijalankan
+  pack_size?: number | null;
+  dus_size?: number | null;
   unit: string;
   emoji: string;
   image_url: string | null;
@@ -31,6 +34,8 @@ export function rowToProduct(r: ProductRow): Product {
     price: r.price,
     oldPrice: r.old_price ?? undefined,
     costPrice: r.cost_price ?? undefined,
+    packSize: r.pack_size ?? undefined,
+    dusSize: r.dus_size ?? undefined,
     unit: r.unit,
     emoji: r.emoji,
     image: r.image_url ?? undefined,
@@ -77,6 +82,8 @@ export function productToRow(p: Product): Record<string, unknown> {
     price: p.price,
     old_price: p.oldPrice ?? null,
     cost_price: p.costPrice ?? null,
+    pack_size: p.packSize ?? null,
+    dus_size: p.dusSize ?? null,
     unit: p.unit,
     emoji: p.emoji,
     image_url: p.image ?? null,

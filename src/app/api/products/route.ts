@@ -1,6 +1,6 @@
 import { db, isCloud, cloudRequired, requireAdmin, unauthorized } from "@/lib/db";
 import { rowToProduct, productToRow, withoutCostPrice } from "@/lib/rows";
-import { replaceProductTiers, tiersForProducts } from "@/lib/product-tiers";
+import { replaceProductTiers, tiersForProducts, productWriteMessage } from "@/lib/product-tiers";
 
 /** GET: katalog produk.
     HPP (costPrice) HANYA dikirim bila pemanggilnya admin terdaftar — halaman
@@ -69,7 +69,12 @@ export async function POST(req: Request) {
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await db().from("products").insert(row).select();
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) {
+    return Response.json(
+      { error: productWriteMessage(error.message) },
+      { status: 500 },
+    );
+  }
   const created = rowToProduct(data![0]);
 
   // tier grosir (v6) ikut tersimpan bila form mengirim daftar tier
